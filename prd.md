@@ -1,5 +1,5 @@
 # KMU Pick AI PRD (구현 현황 최신화 — Front/Back 반영)
-팀명: NoE | 최초 작성일: 2026-10-03 | 최신화: 2026-10-03
+팀명: NoE | 최초 작성일: 2026-10-03 | 최신화: 2026-10-03 (챗봇 Markdown·my-info·공지 소스 17개 반영)
 
 > 이 문서는 팀 저장소(front + backend)의 **실제 구현 상태**에 맞춰 최신화한 PRD다.
 > 각 항목은 **구현 완료 / 보강 중 / 계획**을 구분해 표기한다. 미구현 기능을 완료처럼 쓰지 않는다.
@@ -105,7 +105,8 @@ KMU Pick AI는 국민대학교의 학교·단과대 공지를 실제로 수집�
 
 `backend/src/crawler.mjs`가 학교·단과대학 공지의 목록·본문·첨부·이미지 수집, 정규화, 캐시를 담당한다.
 
-- 수집 대상: 국민대학교 단과대학 공지 게시판 (source map)
+- 수집 대상: 국민대학교 공지 소스 **총 17개** — 학교 전체 공지 1 + 16개 단과대학. 프론트 `front/data/noticeSources.js`(`NOTICE_SOURCES`, 기준일 2026-10-03)에 college·majors·url·kind로 명문화 (커밋 `5286aa0`, PR #8)
+- 각 소스 kind 예: 학사공지 / 학사·취업·장학·행사 분류 / 학과 필터 지원 / 학부별 게시판 존재 등
 - source별 HTML 구조 대응 parser (`<tr>`/`<li>` 혼합, `.do` CMS, 숫자 ID 상대경로, 리스트형)
 - 게시판당 최대 12건, 상세 차수 수집
 - 목록 10분 / 본문 1시간 캐시, 강제 갱신(`/api/crawl`) 최소 30초 간격
@@ -147,11 +148,11 @@ KMU Pick AI는 국민대학교의 학교·단과대 공지를 실제로 수집�
 
 ---
 
-## 7. 사용자 프로필 및 관심사 (프론트)
+## 7. 사용자 프로필("내 정보") 및 관심사 (프론트)
 
-> 상태: **구현 완료**
+> 상태: **구현 완료** (학부 기준 "내 정보" 정리 — 커밋 `5286aa0`, PR #8)
 
-사용자는 학적 / 단과대학 / 학과·전공 / 학년 / 관심 분야 / 관심 키워드를 설정한다.
+사용자는 학적 / 단과대학 / 학과·전공 / 학년 / 관심 분야 / 관심 키워드를 설정한다. "내 정보" 화면의 단과대·전공 선택지는 **학부 기준(`UNDERGRAD_SCHOOLS`)**으로 정리되어, 실제 공지 소스의 단과대/학과 목록과 일치한다. ("학교 전체 공지"는 학부 선택지에서 제외.)
 
 ### 기본 관심 분야
 취업 / 인턴 / 장학금 / 공모전 / AI·데이터 / 특강 / 대학원 / 수강신청 / 교환학생 / 교내행사
@@ -187,10 +188,12 @@ KMU Pick AI는 국민대학교의 학교·단과대 공지를 실제로 수집�
 - `TopNoticeCard` / `HomeNoticeCard` — 상위 추천 카드
 - `NoticeDetail` — 공지 상세
 - `DeadlineBadge`(D-Day) / `SourceBadge`(출처) / `Icon`
-- 데이터: `front/data/notices.js`, `front/data/profile.js` / 로직: `front/lib/recommendations.js`, `front/lib/dates.js`, `front/lib/profile.js`
+- `ChatPanel` / `ChatbotWidget` — AI 공지 탐색 챗봇 UI (Markdown 답변 + 공지 이미지 카드)
+- `NoticeSources` — 공지 소스(17개) 안내/선택
+- 데이터: `front/data/notices.js`, `front/data/profile.js`, `front/data/noticeSources.js` / 로직: `front/lib/recommendations.js`, `front/lib/dates.js`, `front/lib/profile.js`
 
-> 참고: 로컬 프로토타입의 Top 3 캐러셀·AI 공지 검색 챗봇·공지 실행 비서는 통합 프론트(`front/`)에
-> 아직 1:1로 이식되지 않았다. 통합본 반영은 **계획** 항목으로 둔다. (아래 15장)
+> 참고: AI 공지 탐색 챗봇은 통합 프론트(`ChatPanel`/`ChatbotWidget`)에 **이식 완료**(백엔드 RAG 연결).
+> Top 3 캐러셀·공지 실행 비서(준비물/체크리스트)는 아직 통합 프론트에 이식되지 않아 **계획**으로 둔다. (아래 15장)
 
 ---
 
@@ -235,6 +238,11 @@ KMU Pick AI는 국민대학교의 학교·단과대 공지를 실제로 수집�
   - LLM: `POST CHATBOT_LLM_URL` ← `{ model, messages, maxOutputTokens }` → `{ answer }`
 - `.env`의 `CHATBOT_*`로 등록. **현재 모델 API는 미등록 상태** → 미설정 시 벡터 검색이 임베딩을 못 만듦(503). 등록 시 활성
 - LLM에는 질문 + 공지 텍스트만 전송 (API 키·학적 프로필·원문 HTML·로컬 이미지 경로 미전송)
+
+### 답변 형식 / 개인화 컨텍스트
+- 답변은 **Markdown**으로 반환 (프론트 챗봇이 서식 렌더링)
+- 사용자의 **"내 정보"(학적·단과대·전공·관심)를 챗봇 컨텍스트**로 전달해 개인화된 답변 생성 (커밋 `ac4a2c2`)
+- 답변에 참조된 공지의 **이미지 카드**를 프론트 챗봇 UI에 함께 표시
 
 ### Hallucination 방지
 - 검색된 실제 공지 문맥만 사용. 결과 없으면 `status: no_results`로 LLM 미호출 + 안내 문구
@@ -316,7 +324,9 @@ KMU Pick AI는 국민대학교의 학교·단과대 공지를 실제로 수집�
 - 공지 원문 import 스크립트 (`import-notices.mjs`)
 - Fallback (크롤 mixed/502, DB 503)
 - **AI 공지 탐색 챗봇 (RAG)** — `backend/CHATBOT/`, `POST /api/chatbot`, 벡터 청크 컬렉션(`kmu_notice_chunks_v1`), 홈 챗봇 UI 연결, Hallucination 방지
+- 챗봇 **Markdown 답변 + "내 정보" 개인화 컨텍스트 + 공지 이미지 카드** (커밋 `ac4a2c2`)
 - 벡터 인덱싱 스크립트 (`CHATBOT/index-notices.mjs`), 변경 없는 공지 재임베딩 스킵
+- 공지 소스 17개 명문화(`front/data/noticeSources.js`) + "내 정보" 학부 기준 정리(`UNDERGRAD_SCHOOLS`) (커밋 `5286aa0`, PR #8)
 
 ### 계획 (미구현 / 설정 필요)
 - 챗봇 임베딩·LLM 모델 API 실제 등록 (`.env` `CHATBOT_*`) 및 운영 인덱싱 (현재 모델 미등록)
