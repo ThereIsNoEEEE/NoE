@@ -3,13 +3,12 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { STUDENT_TYPES, SCHOOLS, GRADES, DEMO_PROFILES } from "@/data/profile";
+import { SCHOOLS, GRADES, DEMO_PROFILES } from "@/data/profile";
 import { validateKeyword } from "@/lib/profile";
 import { InterestSelector } from "./InterestSelector";
 export function ProfilePanel({
   profile: profile,
   onChange: onChange,
-  onStudentType: onStudentType,
   onToggleInterest: onToggleInterest,
   onAddCustom: onAddCustom,
   onRemoveCustom: onRemoveCustom,
@@ -67,17 +66,6 @@ export function ProfilePanel({
         </div>
         <div className="field-grid">
           <label>
-            <span>{"학적"}</span>
-            <select
-              value={profile.studentType}
-              onChange={(d) => onStudentType(d.target.value)}
-            >
-              {STUDENT_TYPES.map((d) => (
-                <option key={d}>{d}</option>
-              ))}
-            </select>
-          </label>
-          <label>
             <span>{"학년"}</span>
             <select
               value={profile.grade}
@@ -96,9 +84,7 @@ export function ProfilePanel({
             </select>
           </label>
           <label>
-            <span>
-              {profile.studentType === "대학원" ? "대학원" : "단과대학"}
-            </span>
+            <span>{"단과대학"}</span>
             <select
               value={profile.college}
               onChange={(d) =>
