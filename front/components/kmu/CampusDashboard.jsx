@@ -395,8 +395,6 @@ export function CampusDashboard() {
             onOpen={(S) => setSelectedNoticeId(S.notice.id)}
             tiles={tiles}
             onGo={navigate}
-            profile={profile}
-            ranked={ranked}
             who={profileLabel}
           />
         );

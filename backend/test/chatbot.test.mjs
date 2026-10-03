@@ -288,3 +288,17 @@ test('최신 main의 공지 컬렉션 설정을 공유하고 검색 컬렉션과
   assert.equal(config.chatbot.rawCollection, config.qdrant.noticesCollection);
   assert.throws(() => loadConfig({ QDRANT_NOTICES_COLLECTION: 'custom_raw_notices', CHATBOT_COLLECTION: 'custom_raw_notices', CHATBOT_RAW_COLLECTION: 'other_raw' }));
 });
+
+test('openai 형식은 /v1/embeddings·/v1/chat/completions 요청/응답으로 변환한다', async () => {
+  const config = loadChatbotConfig({ CHATBOT_API_FORMAT: 'openai', CHATBOT_EMBEDDING_URL: 'https://api.openai.com/v1/embeddings', CHATBOT_EMBEDDING_MODEL: 'text-embedding-3-small', CHATBOT_LLM_URL: 'https://api.openai.com/v1/chat/completions', CHATBOT_LLM_MODEL: 'gpt-5.4-mini', CHATBOT_LLM_API_KEY: 'k' });
+  const bodies = [];
+  const fetchImpl = async (url, init) => {
+    const body = JSON.parse(init.body); bodies.push(body);
+    const payload = url.endsWith('/embeddings') ? { data: [{ embedding: [0.1, 0.2, 0.3] }] } : { choices: [{ message: { content: ' 답변 [S1] ' } }] };
+    return new Response(JSON.stringify(payload), { status: 200 });
+  };
+  assert.deepEqual(await new HttpEmbeddingProvider(config.embedding, 1000, fetchImpl).embed('질문'), [0.1, 0.2, 0.3]);
+  assert.equal(await new HttpLlmProvider(config.llm, 1000, 300, fetchImpl).generate([{ role: 'user', content: 'q' }]), '답변 [S1]');
+  assert.deepEqual(bodies[1], { model: 'gpt-5.4-mini', messages: [{ role: 'user', content: 'q' }], max_completion_tokens: 300 });
+  assert.throws(() => loadChatbotConfig({ CHATBOT_API_FORMAT: 'other' }));
+});

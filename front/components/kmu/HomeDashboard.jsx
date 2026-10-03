@@ -12,8 +12,6 @@ export function HomeDashboard({
   onOpen: onOpen,
   tiles: tiles,
   onGo: onGo,
-  profile: profile,
-  ranked: ranked,
   who: who,
 }) {
   return (
@@ -79,7 +77,7 @@ export function HomeDashboard({
           </Button>
         ))}
       </section>
-      <ChatPanel profile={profile} ranked={ranked} />
+      <ChatPanel />
     </Fragment>
   );
 }

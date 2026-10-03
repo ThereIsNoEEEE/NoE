@@ -16,6 +16,8 @@ export function loadChatbotConfig(env = process.env) {
   if (!/^[a-zA-Z0-9_-]{1,100}$/.test(collection) || collection === (env.QDRANT_COLLECTION || 'kmu_academic_profiles_v1')) throw new Error('CHATBOT_COLLECTION은 학사 정보와 분리된 검색 전용 컬렉션이어야 합니다.');
   const threshold = env.CHATBOT_SCORE_THRESHOLD ? Number(env.CHATBOT_SCORE_THRESHOLD) : undefined;
   if (threshold !== undefined && (!Number.isFinite(threshold) || threshold < -1 || threshold > 1)) throw new Error('CHATBOT_SCORE_THRESHOLD는 -1~1 범위입니다.');
+  const format = env.CHATBOT_API_FORMAT || 'neutral';
+  if (!['neutral', 'openai'].includes(format)) throw new Error('CHATBOT_API_FORMAT은 neutral 또는 openai입니다.');
   const embeddingModel = env.CHATBOT_EMBEDDING_MODEL || '';
   const embeddingSpace = env.CHATBOT_EMBEDDING_SPACE || embeddingModel;
   const rawCollection = env.CHATBOT_RAW_COLLECTION || env.QDRANT_NOTICES_COLLECTION || 'kmu_notices_raw_v1';
@@ -30,7 +32,7 @@ export function loadChatbotConfig(env = process.env) {
     maxContextChars: integer('CHATBOT_MAX_CONTEXT_CHARS', 12000, 1000, 30000),
     maxOutputTokens: integer('CHATBOT_MAX_OUTPUT_TOKENS', 800, 1, 4096),
     threshold,
-    embedding: { url: endpoint('CHATBOT_EMBEDDING_URL'), model: embeddingModel, space: embeddingSpace, apiKey: env.CHATBOT_EMBEDDING_API_KEY || '' },
-    llm: { url: endpoint('CHATBOT_LLM_URL'), model: env.CHATBOT_LLM_MODEL || '', apiKey: env.CHATBOT_LLM_API_KEY || '' },
+    embedding: { url: endpoint('CHATBOT_EMBEDDING_URL'), model: embeddingModel, space: embeddingSpace, apiKey: env.CHATBOT_EMBEDDING_API_KEY || '', format, minIntervalMs: integer('CHATBOT_EMBEDDING_MIN_INTERVAL_MS', 0, 0, 60000) },
+    llm: { url: endpoint('CHATBOT_LLM_URL'), model: env.CHATBOT_LLM_MODEL || '', apiKey: env.CHATBOT_LLM_API_KEY || '', format },
   };
 }

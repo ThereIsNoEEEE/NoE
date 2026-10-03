@@ -2281,4 +2281,15 @@
     border: 1px solid #4a352c;
     color: #e9c5b8;
   }
+  .chat-sources {
+    margin: 8px 0 0;
+    padding-left: 16px;
+    font-size: 0.76rem;
+  }
+  .chat-sources a {
+    color: var(--muted);
+  }
+  .chat-sources a:hover {
+    color: var(--accent);
+  }
 }

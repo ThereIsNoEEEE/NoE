@@ -7,8 +7,6 @@ services:
       - backend
     environment:
       BACKEND_URL: http://backend:8001
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.4-mini}
     ports:
       - "3001:3000"
 
@@ -23,6 +21,14 @@ services:
       QDRANT_API_KEY: ${QDRANT_API_KEY}
       QDRANT_ALLOW_INSECURE_HTTP: "true"
       ALLOWED_HOSTS: backend
+      CHATBOT_API_FORMAT: openai
+      CHATBOT_EMBEDDING_URL: https://generativelanguage.googleapis.com/v1beta/openai/embeddings
+      CHATBOT_EMBEDDING_MODEL: ${CHATBOT_EMBEDDING_MODEL:-gemini-embedding-001}
+      CHATBOT_EMBEDDING_API_KEY: ${GEMINI_API_KEY}
+      CHATBOT_LLM_URL: https://generativelanguage.googleapis.com/v1beta/openai/chat/completions
+      CHATBOT_LLM_MODEL: ${CHATBOT_LLM_MODEL:-gemini-3.5-flash-lite}
+      CHATBOT_LLM_API_KEY: ${GEMINI_API_KEY}
+      CHATBOT_MAX_OUTPUT_TOKENS: "2000"
     ports:
       - "127.0.0.1:8001:8001"
 

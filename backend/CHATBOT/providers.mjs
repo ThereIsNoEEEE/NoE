@@ -4,6 +4,7 @@ import { validateVector } from './schema.mjs';
 // Vendor-neutral JSON adapter contract. Swap these adapters for a chosen SDK later.
 // Embeddings: POST {model, input: string} -> {embedding: number[]}
 // Generation: POST {model, messages, maxOutputTokens} -> {answer: string}
+// format 'openai' maps the same calls to OpenAI's /v1/embeddings and /v1/chat/completions shapes.
 async function postJson(config, body, timeoutMs, fetchImpl, kind, signal) {
   try {
     const response = await fetchImpl(config.url, {
@@ -35,8 +36,12 @@ export class HttpEmbeddingProvider {
   isConfigured() { return Boolean(this.config.url && this.config.model && this.config.space); }
   async embed(text, { signal } = {}) {
     if (!this.isConfigured()) throw new ApiError(503, 'EMBEDDING_NOT_CONFIGURED', '임베딩 API URL과 모델을 먼저 설정하세요.');
+    // Optional pacing for bulk indexing under provider rate limits (CHATBOT_EMBEDDING_MIN_INTERVAL_MS).
+    const wait = (this.lastCallAt ?? 0) + (this.config.minIntervalMs || 0) - Date.now();
+    if (wait > 0) await new Promise(resolve => setTimeout(resolve, wait));
+    this.lastCallAt = Date.now();
     const result = await postJson(this.config, { model: this.config.model, input: text }, this.timeoutMs, this.fetchImpl, 'EMBEDDING', signal);
-    return validateVector(result?.embedding);
+    return validateVector(this.config.format === 'openai' ? result?.data?.[0]?.embedding : result?.embedding);
   }
 }
 
@@ -45,7 +50,10 @@ export class HttpLlmProvider {
   isConfigured() { return Boolean(this.config.url && this.config.model); }
   async generate(messages, { signal } = {}) {
     if (!this.isConfigured()) throw new ApiError(503, 'LLM_NOT_CONFIGURED', 'LLM API가 미등록 상태입니다. 검색 문맥만 확인하려면 mode: prepare를 사용하세요.');
-    const result = await postJson(this.config, { model: this.config.model, messages, maxOutputTokens: this.maxOutputTokens }, this.timeoutMs, this.fetchImpl, 'LLM', signal);
+    const openai = this.config.format === 'openai';
+    const body = openai ? { model: this.config.model, messages, max_completion_tokens: this.maxOutputTokens } : { model: this.config.model, messages, maxOutputTokens: this.maxOutputTokens };
+    const raw = await postJson(this.config, body, this.timeoutMs, this.fetchImpl, 'LLM', signal);
+    const result = openai ? { answer: raw?.choices?.[0]?.message?.content } : raw;
     if (typeof result?.answer !== 'string' || !result.answer.trim() || result.answer.length > 30000) throw new ApiError(502, 'LLM_RESPONSE_INVALID', 'LLM이 유효한 텍스트 답변을 반환하지 않았습니다.');
     return result.answer.trim();
   }
