@@ -3,6 +3,7 @@ WORKDIR /app
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=8001
 COPY package.json ./
 COPY src ./src
+COPY CHATBOT ./CHATBOT
 COPY examples ./examples
 COPY openapi.json ./
 USER node

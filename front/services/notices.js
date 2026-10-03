@@ -36,6 +36,7 @@ function normalizeNotice(e, t = {}) {
   return {
     id: String(e.id || createNoticeId(l + n)),
     title: n,
+    imageUrl: typeof e.imageUrl === "string" && /^\/api\/(?:db\/notices\/[a-f0-9-]+\/image|images\/[a-f0-9]+)$/.test(e.imageUrl) ? e.imageUrl : null,
     content: String(e.content || "")
       .replace(/\s+/g, " ")
       .trim()

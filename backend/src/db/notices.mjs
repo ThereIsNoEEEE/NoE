@@ -1,5 +1,8 @@
 import { createHash } from 'node:crypto';
 import { QdrantError } from './qdrant.mjs';
+import { ApiError } from '../http.mjs';
+import { UUID } from './profile-schema.mjs';
+import { imageCandidates, readNoticeImage } from './notice-images.mjs';
 
 export const NOTICES_COLLECTION = 'kmu_notices_raw_v1';
 const CONTENT_STATUSES = new Set(['text_extracted', 'image_only', 'attachment_only', 'extraction_failed']);
@@ -38,7 +41,7 @@ export function validateNotice(input) {
         const assetUrl = new URL(asset.url);
         if (!['https:', 'http:', 'file:'].includes(assetUrl.protocol)) throw new Error(`${field}: 지원하지 않는 URL 형식입니다.`);
       }
-      if (!asset.url && !asset.localPath) throw new Error(`${field}: URL 또는 파일 경로가 필요합니다.`);
+      if (!asset.url && !asset.localPath && !(asset.availability === 'unavailable' && typeof asset.originalUrl === 'string' && asset.originalUrl.startsWith('file:'))) throw new Error(`${field}: URL 또는 파일 경로가 필요합니다.`);
     }
   }
   if (input.reviewReasons != null && !Array.isArray(input.reviewReasons)) throw new Error('reviewReasons: 배열이 필요합니다.');
@@ -83,11 +86,12 @@ const LIST_MAX_NOTICES = 2000;
 const LIST_MAX_CONTENT = 2000;
 
 // Maps a stored payload to the shape the front dashboard consumes.
-export function toNoticeItem(payload) {
+export function toNoticeItem(payload, pointId = null) {
   const n = payload?.notice;
   if (!n || typeof n !== 'object' || !n.id || !n.title) return null;
   return {
     id: String(n.id),
+    imageUrl: pointId && imageCandidates(payload).length ? `/api/db/notices/${pointId}/image` : null,
     title: String(n.title),
     content: String(n.content || '').slice(0, LIST_MAX_CONTENT),
     date: n.dateUnknown ? '' : String(n.date || ''),
@@ -96,7 +100,12 @@ export function toNoticeItem(payload) {
     sourceName: n.sourceName || '',
     category: n.sourceCategory || n.sourceBoard || '',
     pinned: Boolean(n.pinned),
+    sourceId: n.sourceId || '',
+    sourceBoard: n.sourceBoard || '',
+    contentStatus: n.contentStatus || null,
+    collectedAt: n.collectedAt || null,
     analysisStatus: payload.analysisStatus || null,
+    needsOcr: Boolean(payload.needsOcr),
   };
 }
 
@@ -132,6 +141,20 @@ export class NoticesRepository {
     return saved;
   }
 
+  async image(id) {
+    if (!UUID.test(id)) throw new ApiError(400, 'INVALID_NOTICE_ID', '올바른 공지 ID가 필요합니다.');
+    let point;
+    try { point = await this.client.point(this.collection, id); }
+    catch (error) {
+      if (error instanceof QdrantError && error.status === 404) throw new ApiError(404, 'NOTICE_NOT_FOUND', '공지를 찾을 수 없습니다.');
+      throw error;
+    }
+    if (point?.payload?.kind !== 'notice') throw new ApiError(404, 'NOTICE_NOT_FOUND', '공지를 찾을 수 없습니다.');
+    const image = await readNoticeImage(point.payload);
+    if (!image) throw new ApiError(404, 'NOTICE_IMAGE_NOT_FOUND', '표시할 공지 이미지가 없습니다.');
+    return image;
+  }
+
   async list() {
     const items = [];
     let offset = null;
@@ -141,7 +164,7 @@ export class NoticesRepository {
         filter: { must: [{ key: 'kind', match: { value: 'notice' } }] },
       });
       for (const point of result?.points || []) {
-        const item = toNoticeItem(point.payload);
+        const item = toNoticeItem(point.payload, point.id);
         if (item) items.push(item);
       }
       offset = result?.next_page_offset ?? null;

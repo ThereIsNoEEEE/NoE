@@ -24,6 +24,7 @@ import { HomeDashboard } from "./HomeDashboard";
 import { NoticeFeed } from "./NoticeFeed";
 import { ThemeToggle } from "./ThemeToggle";
 import { ChatbotWidget } from "./ChatbotWidget";
+import { CollectedNotices } from "./CollectedNotices";
 export function CampusDashboard() {
   const today = React.useMemo(() => new Date(), []);
   const [profile, setProfile] = React.useState(loadProfile);
@@ -378,6 +379,7 @@ export function CampusDashboard() {
           </div>
         </div>
         {renderProfile("저장하고 추천 보기", true)}
+        <CollectedNotices />
       </section>
     );
   } else {
