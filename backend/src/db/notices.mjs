@@ -38,7 +38,7 @@ export function validateNotice(input) {
         const assetUrl = new URL(asset.url);
         if (!['https:', 'http:', 'file:'].includes(assetUrl.protocol)) throw new Error(`${field}: 지원하지 않는 URL 형식입니다.`);
       }
-      if (!asset.url && !asset.localPath) throw new Error(`${field}: URL 또는 파일 경로가 필요합니다.`);
+      if (!asset.url && !asset.localPath && !(asset.availability === 'unavailable' && typeof asset.originalUrl === 'string' && asset.originalUrl.startsWith('file:'))) throw new Error(`${field}: URL 또는 파일 경로가 필요합니다.`);
     }
   }
   if (input.reviewReasons != null && !Array.isArray(input.reviewReasons)) throw new Error('reviewReasons: 배열이 필요합니다.');
