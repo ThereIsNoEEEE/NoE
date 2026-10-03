@@ -519,7 +519,10 @@ export function CampusDashboard() {
           {view !== "settings" && statusIndicators}
           {content}
           <footer className="footer">
-            <span>{"KMU Pick AI · HACKATHON MVP"}</span>
+            <span>
+              {"KMU Pick AI · HACKATHON MVP · "}
+              <a href="/business">{"비즈니스 가치 검증"}</a>
+            </span>
             <span>
               {
                 "공지 원문은 국민대학교 공식 홈페이지 기준이며, 점수·요약은 참고용입니다. 지원 자격과 마감일은 반드시 원문에서 확인하세요."
