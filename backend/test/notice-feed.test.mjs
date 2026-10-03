@@ -76,3 +76,22 @@ test('GET /api/notice-feed: 커서 없으면 최신 목록, 커서 이후 도착
   assert.equal((await get('other-epoch:3')).type, 'hello');
   assert.equal((await get(`${feed.epoch}:999`)).type, 'hello');
 });
+
+test('replay 모드는 처음 목록 밖의 실제 공지를 최신순으로 하나씩 새 공지로 알린다', async () => {
+  const items = ['a', 'b', 'c', 'd'].map((id, i) => notice(id, `2026-10-0${4 - i}`));
+  const feed = new NoticeFeed({ list: async () => items }, { latestCount: 2, replayIntervalMs: 5000 });
+  await feed.refresh();
+  const sent = [];
+  feed.add({ send: m => sent.push(m), onClose: () => {}, ping: () => {} });
+  const hello = feed.poll();
+  assert.deepEqual(hello.items.map(i => i.id), ['a', 'b']);
+  assert.equal(feed.replay().id, 'c');
+  assert.deepEqual(sent.at(-1).items.map(i => i.id), ['c']);
+  assert.deepEqual(feed.poll(hello.cursor).items.map(i => i.id), ['c']);
+  assert.deepEqual(feed.latest.map(i => i.id), ['c', 'a']);
+  await feed.refresh();
+  assert.deepEqual(feed.latest.map(i => i.id), ['c', 'a'], 'periodic refresh keeps announced notices on top');
+  assert.equal(feed.replay().id, 'd');
+  assert.equal(feed.replay(), null);
+  assert.equal(new Set(feed.log.map(e => e.item.id)).size, feed.log.length);
+});

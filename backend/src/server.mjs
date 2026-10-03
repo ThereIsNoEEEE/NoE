@@ -83,7 +83,7 @@ export function createServer({ config = loadConfig(), repository, notices, chatb
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   const config = loadConfig();
   if (config.qdrant.insecureRemote) console.warn('주의: 원격 Qdrant HTTP 개발 연결입니다. 키와 데이터가 암호화되지 않습니다. 실제 개인정보에는 HTTPS 또는 보안 터널을 사용하세요.');
-  const feed = new NoticeFeed(new NoticesRepository(new QdrantClient(config.qdrant), config.qdrant.noticesCollection), { intervalMs: config.noticeFeedIntervalMs }).start();
+  const feed = new NoticeFeed(new NoticesRepository(new QdrantClient(config.qdrant), config.qdrant.noticesCollection), { intervalMs: config.noticeFeedIntervalMs, replayIntervalMs: config.noticeFeedReplayIntervalMs }).start();
   const server = createServer({ config, feed });
   server.on('error', error => { console.error(error.code === 'EADDRINUSE' ? '포트가 사용 중입니다. .env에서 PORT를 변경하세요.' : '서버를 시작하지 못했습니다.'); process.exitCode = 1; });
   server.listen(config.port, config.host, () => console.log(`KMU Pick 백엔드: http://${config.host}:${config.port} (Qdrant 상태: /api/db/health)`));

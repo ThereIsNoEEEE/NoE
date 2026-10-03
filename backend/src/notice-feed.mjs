@@ -6,8 +6,8 @@ const pick = item => Object.fromEntries(FEED_FIELDS.map(key => [key, item[key] ?
 const LOG_LIMIT = 200;
 
 export class NoticeFeed {
-  constructor(notices, { intervalMs = 60000, latestCount = 20, heartbeatMs = 30000 } = {}) {
-    Object.assign(this, { notices, intervalMs, latestCount, heartbeatMs });
+  constructor(notices, { intervalMs = 60000, latestCount = 20, heartbeatMs = 30000, replayIntervalMs = 0 } = {}) {
+    Object.assign(this, { notices, intervalMs, latestCount, heartbeatMs, replayIntervalMs });
     this.clients = new Set();
     this.known = null;
     this.latest = [];
@@ -17,6 +17,11 @@ export class NoticeFeed {
     this.epoch = Date.now().toString(36);
     this.seq = 0;
     this.log = [];
+    // Replay mode (NOTICE_FEED_REPLAY_INTERVAL_MS): when real arrivals are rare, re-announce
+    // stored real notices one at a time, newest first beyond the initial list. Only real
+    // notices (real titles/links) are sent; nothing is fabricated.
+    this.replayQueue = null;
+    this.arrived = [];
   }
 
   // First run only records what exists; later runs broadcast notices with unseen ids.
@@ -24,13 +29,34 @@ export class NoticeFeed {
     const items = await this.notices.list();
     const fresh = this.known ? items.filter(item => !this.known.has(item.id)) : [];
     this.known = new Set(items.map(item => item.id));
-    this.latest = items.slice(0, this.latestCount).map(pick);
-    if (fresh.length) {
-      for (const item of fresh) this.log.push({ seq: ++this.seq, item: pick(item) });
-      this.log.splice(0, Math.max(0, this.log.length - LOG_LIMIT));
-      this.broadcast({ type: 'notices', items: fresh.map(pick), at: new Date().toISOString() });
-    }
+    this.base = items.slice(0, this.latestCount).map(pick);
+    this.replayQueue ??= items.slice(this.latestCount).map(pick);
+    this.updateLatest();
+    if (fresh.length) this.announce(fresh.map(pick));
     return fresh;
+  }
+
+  // Latest list = announced arrivals (newest first) followed by the newest stored notices.
+  updateLatest() {
+    const seen = new Set();
+    this.latest = [...this.arrived, ...(this.base || [])].filter(item => !seen.has(item.id) && seen.add(item.id)).slice(0, this.latestCount);
+  }
+
+  announce(items) {
+    for (const item of items) this.log.push({ seq: ++this.seq, item });
+    this.log.splice(0, Math.max(0, this.log.length - LOG_LIMIT));
+    this.arrived = [...items, ...this.arrived.filter(a => !items.some(i => i.id === a.id))].slice(0, this.latestCount);
+    this.updateLatest();
+    this.broadcast({ type: 'notices', items, at: new Date().toISOString() });
+  }
+
+  // Replay mode: announce the next stored notice that has not been shown yet.
+  replay() {
+    const next = this.replayQueue?.find(item => !this.arrived.some(a => a.id === item.id));
+    if (!next) return null;
+    this.replayQueue = this.replayQueue.filter(item => item.id !== next.id);
+    this.announce([next]);
+    return next;
   }
 
   cursor() { return `${this.epoch}:${this.seq}`; }
@@ -59,6 +85,7 @@ export class NoticeFeed {
     const tick = () => this.refresh().catch(error => console.warn(`공지 알림 갱신 실패: ${error.message}`));
     tick();
     this.timers.push(setInterval(tick, this.intervalMs), setInterval(() => { for (const client of this.clients) client.ping(); }, this.heartbeatMs));
+    if (this.replayIntervalMs > 0) this.timers.push(setInterval(() => this.replay(), this.replayIntervalMs));
     for (const timer of this.timers) timer.unref?.();
     return this;
   }

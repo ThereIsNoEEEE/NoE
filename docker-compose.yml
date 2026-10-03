@@ -21,6 +21,7 @@ services:
       QDRANT_API_KEY: ${QDRANT_API_KEY}
       QDRANT_ALLOW_INSECURE_HTTP: "true"
       ALLOWED_HOSTS: backend
+      NOTICE_FEED_REPLAY_INTERVAL_MS: "60000"
       CHATBOT_API_FORMAT: openai
       CHATBOT_EMBEDDING_URL: https://generativelanguage.googleapis.com/v1beta/openai/embeddings
       CHATBOT_EMBEDDING_MODEL: ${CHATBOT_EMBEDDING_MODEL:-gemini-embedding-001}
