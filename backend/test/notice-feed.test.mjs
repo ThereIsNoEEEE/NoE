@@ -54,3 +54,25 @@ test('WebSocket은 /ws/notices 외 경로와 허용되지 않은 Host를 거부�
   });
   assert.match(raw, /^HTTP\/1\.1 403/);
 });
+
+test('GET /api/notice-feed: 커서 없으면 최신 목록, 커서 이후 도착분만 돌려주고 다른 epoch 커서는 초기화한다', async t => {
+  let items = [notice('a', '2026-10-02')];
+  const feed = new NoticeFeed({ list: async () => items });
+  await feed.refresh();
+  const app = createServer({ config: loadConfig({}), feed, chatbot: { status: () => ({}) } });
+  app.listen(0, '127.0.0.1'); await once(app, 'listening');
+  t.after(() => { app.closeAllConnections(); app.close(); });
+  const get = async after => (await fetch(`http://127.0.0.1:${app.address().port}/api/notice-feed${after ? `?after=${encodeURIComponent(after)}` : ''}`)).json();
+  const hello = await get();
+  assert.equal(hello.type, 'hello'); assert.deepEqual(hello.items.map(i => i.id), ['a']);
+  const empty = await get(hello.cursor);
+  assert.deepEqual([empty.type, empty.items.length, empty.cursor], ['notices', 0, hello.cursor]);
+  items = [notice('c', '2026-10-03'), notice('b', '2026-10-03'), ...items];
+  await feed.refresh();
+  const fresh = await get(hello.cursor);
+  assert.deepEqual(fresh.items.map(i => i.id).sort(), ['b', 'c']);
+  assert.notEqual(fresh.cursor, hello.cursor);
+  assert.equal((await get(fresh.cursor)).items.length, 0);
+  assert.equal((await get('other-epoch:3')).type, 'hello');
+  assert.equal((await get(`${feed.epoch}:999`)).type, 'hello');
+});

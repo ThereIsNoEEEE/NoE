@@ -31,6 +31,11 @@ export function createServer({ config = loadConfig(), repository, notices, chatb
       const url = new URL(request.url, base);
       if (await handleChatbotRoutes(request, response, url, chatbot)) return;
       if (await handleDbRoutes(request, response, url, repository, notices)) return;
+      if (url.pathname === '/api/notice-feed') {
+        if (request.method !== 'GET') throw new ApiError(405, 'METHOD_NOT_ALLOWED', 'GET을 사용하세요.');
+        if (!feed) throw new ApiError(503, 'FEED_UNAVAILABLE', '공지 알림 피드가 준비되지 않았습니다.');
+        json(response, 200, feed.poll(url.searchParams.get('after'))); return;
+      }
       if (request.method === 'GET' && url.pathname === '/api/health') { json(response, 200, { ok: true, service: 'kmu-pick-backend' }); return; }
       if (request.method === 'GET' && url.pathname === '/api/notices' || request.method === 'POST' && url.pathname === '/api/crawl') {
         const data = await crawler.getNotices(request.method === 'POST' || url.searchParams.get('refresh') === '1');

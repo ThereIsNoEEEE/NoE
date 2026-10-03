@@ -22,56 +22,83 @@ function writeSeen(ids) {
   } catch {}
 }
 
-// Live notice feed over WebSocket (/ws/notices): `hello` = latest notices on connect,
-// `notices` = notices that arrived after connecting. Reconnects with backoff.
+const POLL_MS = 30000;
+
+// Live notice feed. Prefers the WebSocket (/ws/notices): `hello` = latest notices on connect,
+// `notices` = arrivals. Hosts that can't proxy WebSockets (e.g. Vercel) fail before the socket
+// opens; then it falls back to polling GET /api/notice-feed?after=<cursor> with the same messages.
 function useNoticeFeed(onNew) {
   const [items, setItems] = React.useState([]);
   const [connected, setConnected] = React.useState(false);
+  const [mode, setMode] = React.useState("websocket");
   const onNewRef = React.useRef(onNew);
   onNewRef.current = onNew;
 
   React.useEffect(() => {
     let ws;
-    let retry;
+    let timer;
     let delay = 2000;
     let stopped = false;
+    let everOpened = false;
+    let cursor = null;
+
+    const handle = (message) => {
+      if (!message || !Array.isArray(message.items)) return;
+      setItems((prev) => mergeItems(message.items, prev));
+      if (message.type === "notices" && message.items.length) onNewRef.current?.(message.items);
+    };
+
+    const poll = async () => {
+      if (stopped) return;
+      try {
+        const res = await fetch(`/api/notice-feed${cursor ? `?after=${encodeURIComponent(cursor)}` : ""}`, { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const message = await res.json();
+        cursor = message.cursor || cursor;
+        handle(message);
+        setConnected(true);
+      } catch {
+        setConnected(false);
+      }
+      if (!stopped) timer = setTimeout(poll, POLL_MS);
+    };
+
     const connect = () => {
       ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/notices`);
       ws.onopen = () => {
+        everOpened = true;
         delay = 2000;
         setConnected(true);
       };
       ws.onmessage = (event) => {
-        let message;
         try {
-          message = JSON.parse(event.data);
-        } catch {
-          return;
-        }
-        if (!Array.isArray(message.items)) return;
-        if (message.type === "hello") {
-          setItems((prev) => mergeItems(message.items, prev));
-        } else if (message.type === "notices") {
-          setItems((prev) => mergeItems(message.items, prev));
-          onNewRef.current?.(message.items);
-        }
+          handle(JSON.parse(event.data));
+        } catch {}
       };
       ws.onclose = () => {
         setConnected(false);
         if (stopped) return;
-        retry = setTimeout(connect, delay);
+        if (!everOpened) {
+          setMode("polling");
+          poll();
+          return;
+        }
+        timer = setTimeout(connect, delay);
         delay = Math.min(delay * 2, 30000);
       };
     };
     connect();
     return () => {
       stopped = true;
-      clearTimeout(retry);
-      ws?.close();
+      clearTimeout(timer);
+      if (ws) {
+        ws.onclose = null;
+        ws.close();
+      }
     };
   }, []);
 
-  return { items, connected };
+  return { items, connected, mode };
 }
 
 function mergeItems(incoming, prev) {
@@ -80,7 +107,7 @@ function mergeItems(incoming, prev) {
 }
 
 export function NotificationBell({ onNew }) {
-  const { items, connected } = useNoticeFeed(onNew);
+  const { items, connected, mode } = useNoticeFeed(onNew);
   const [seen, setSeen] = React.useState(null);
   const [open, setOpen] = React.useState(false);
   const rootRef = React.useRef(null);
@@ -135,7 +162,7 @@ export function NotificationBell({ onNew }) {
         <div className="bell-panel" role="dialog" aria-label="최신 공지 알림">
           <div className="bell-head">
             <strong>{"최신 공지"}</strong>
-            <span className={`bell-status${connected ? " on" : ""}`}>{connected ? "실시간 연결됨" : "연결 중…"}</span>
+            <span className={`bell-status${connected ? " on" : ""}`}>{connected ? (mode === "polling" ? "30초마다 확인" : "실시간 연결됨") : "연결 중…"}</span>
             <Button variant="original" className="bell-read" onClick={markAllRead} disabled={!unread.length} type="button">
               {"모두 읽음"}
             </Button>

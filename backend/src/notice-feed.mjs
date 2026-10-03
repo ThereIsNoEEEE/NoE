@@ -3,6 +3,7 @@
 const FEED_FIELDS = ['id', 'title', 'date', 'url', 'sourceName', 'imageUrl', 'collectedAt'];
 
 const pick = item => Object.fromEntries(FEED_FIELDS.map(key => [key, item[key] ?? null]));
+const LOG_LIMIT = 200;
 
 export class NoticeFeed {
   constructor(notices, { intervalMs = 60000, latestCount = 20, heartbeatMs = 30000 } = {}) {
@@ -11,6 +12,11 @@ export class NoticeFeed {
     this.known = null;
     this.latest = [];
     this.timers = [];
+    // HTTP polling fallback (e.g. a Vercel-hosted front can't proxy WebSockets):
+    // arrivals are logged with a sequence number; cursors are `${epoch}:${seq}`.
+    this.epoch = Date.now().toString(36);
+    this.seq = 0;
+    this.log = [];
   }
 
   // First run only records what exists; later runs broadcast notices with unseen ids.
@@ -19,8 +25,24 @@ export class NoticeFeed {
     const fresh = this.known ? items.filter(item => !this.known.has(item.id)) : [];
     this.known = new Set(items.map(item => item.id));
     this.latest = items.slice(0, this.latestCount).map(pick);
-    if (fresh.length) this.broadcast({ type: 'notices', items: fresh.map(pick), at: new Date().toISOString() });
+    if (fresh.length) {
+      for (const item of fresh) this.log.push({ seq: ++this.seq, item: pick(item) });
+      this.log.splice(0, Math.max(0, this.log.length - LOG_LIMIT));
+      this.broadcast({ type: 'notices', items: fresh.map(pick), at: new Date().toISOString() });
+    }
     return fresh;
+  }
+
+  cursor() { return `${this.epoch}:${this.seq}`; }
+
+  // GET /api/notice-feed?after=<cursor>: no/foreign cursor → latest list (type hello);
+  // otherwise the notices that arrived after that cursor (type notices).
+  poll(after) {
+    const [epoch, seqText] = String(after || '').split(':');
+    const seq = Number(seqText);
+    const base = { cursor: this.cursor(), intervalMs: this.intervalMs, at: new Date().toISOString() };
+    if (epoch !== this.epoch || !Number.isInteger(seq) || seq < 0 || seq > this.seq) return { type: 'hello', items: this.latest, ...base };
+    return { type: 'notices', items: this.log.filter(entry => entry.seq > seq).map(entry => entry.item).reverse(), ...base };
   }
 
   broadcast(message) {
