@@ -1,438 +1,323 @@
-# KMU Pick AI PRD (구현 현황 최신화)
-팀명: [팀명] | 최초 작성일: 2026-10-03 | 최신화: 2026-10-03
+# KMU Pick AI PRD (구현 현황 최신화 — Front/Back 반영)
+팀명: NoE | 최초 작성일: 2026-10-03 | 최신화: 2026-10-03
 
-> 이 문서는 실제 구현된 상태에 맞춰 최신화한 PRD다.
-> 각 항목은 **구현 완료 / 보강 중 / 계획**을 구분해 표기한다.
-> 아직 구현되지 않은 기능은 완료처럼 서술하지 않는다.
+> 이 문서는 팀 저장소(front + backend)의 **실제 구현 상태**에 맞춰 최신화한 PRD다.
+> 각 항목은 **구현 완료 / 보강 중 / 계획**을 구분해 표기한다. 미구현 기능을 완료처럼 쓰지 않는다.
+> 참고: 아키텍처가 로컬 프로토타입(Vite+React / LocalStorage·Supabase / 로컬 crawler)에서
+> 팀 통합본(**Next.js 프론트 + Node 백엔드 + Qdrant DB**)으로 전환되었다. 본 문서는 통합본 기준이다.
 
 ---
 
 ## 1. 서비스 정의
 
-KMU Pick AI는 국민대학교의 학교·단과대 공지를 실제로 수집하고, 사용자의 학적 정보·소속·관심 분야를 바탕으로 필요한 공지를 개인화 추천하며, 자연어 AI 검색과 실행 정리까지 제공하는 공지 AI 비서다.
+KMU Pick AI는 국민대학교의 학교·단과대 공지를 실제로 수집하고, 사용자의 학적 정보·소속·관심 분야를 바탕으로 필요한 공지를 개인화 추천하는 공지 AI 비서다. 자연어 검색과 공지 실행 정리까지 제공하는 것을 목표로 한다.
 
 ### 핵심 문장
 **“국민대 공지를 다 읽지 않아도, AI가 나에게 필요한 기회를 찾아주고 무엇을 해야 하는지까지 정리해준다.”**
 
 ---
 
-## 2. 실제 공지 데이터 수집 범위
+## 2. 시스템 아키텍처 (실제 구현)
 
-> 상태: **구현 완료** (일부 source 보강 중)
+> 상태: **구현 완료** (일부 영역 계획)
 
-- 국민대학교 단과대학 공지 source map: **총 16개**
-- 각 source에 단과대학명(`sourceCollege`)과 소속 학부·학과(`sourceDepartments`) 메타데이터 포함
-- 실제 HTML 구조에 따라 source별 parser 분리:
-  - 일반 KMU 게시판 (`<tr>` / `<li>` 혼합)
-  - `.do` 형태 게시판 (국민대 CMS)
-  - 숫자 ID 기반 상대경로 게시판
-  - 리스트형 게시판
+```text
+[ Next.js Front (front/) ]  ──同 origin /api/* 프록시──▶  [ Node Backend (backend/) ]  ──REST──▶  [ Qdrant 벡터DB ]
+     React 19 / Tailwind v4                                 무의존성 Node ≥22, 포트 8001           payload-only 컬렉션
+```
 
-### 수집 대상 16개 단과대학
-글로벌인문·지역대학 / 사회과학대학 / 법과대학 / 경상대학 / 공과대학 / 조형대학 / 과학기술대학 / 예술대학 / 체육대학 / 경영대학 / 소프트웨어융합대학 / 건축대학 / 자동차모빌리티대학 / 미래융합대학 / KMU International Business School(KIBS) / 교양대학
-
-### 보강 이력
-- 기존 0건이던 **건축대학 / 자동차모빌리티대학 / KIBS**: 숫자형 상대경로 전용 parser 추가로 보강 완료 (각각 수집됨).
-- **보강 중**: 조형대학(design) 상세 제목 parser 정확도, 자동차모빌리티대학(auto) 상세 본문 정확도.
+- **프론트엔드**: `front/` — Next.js 16 + React 19 + TypeScript + Tailwind v4, App Router. 같은 origin `/api/*`를 백엔드로 프록시.
+- **백엔드**: `backend/` — Node.js ≥22, 외부 npm 의존성 없음. HTTP 서버 + 크롤러 + Qdrant 연동. 기본 포트 `http://127.0.0.1:8001`.
+- **DB**: Qdrant (payload-only). 공유 서버 `http://14.36.30.189:13000`(버전 1.15.4). 컬렉션 `kmu_academic_profiles_v1`(프로필), `kmu_notices_raw_v1`(공지 원문).
+- **인증**: 현재 없음 (로컬/데모 전용). UUID는 인증 수단이 아니므로 공개 서버로 그대로 노출 금지.
 
 ---
 
-## 3. 최근 3개월 수집 정책
+## 3. 백엔드 API (실제 구현)
 
-> 상태: **구현 완료**
+> 상태: **구현 완료** (OpenAPI 3.1 명세 `backend/openapi.json`)
 
-실제 크롤러는 최근 3개월 공지를 대상으로 한다.
+### 프로필 (Qdrant 저장)
+| 메서드 | 엔드포인트 | 용도 |
+|---|---|---|
+| POST | `/api/db/profiles` | 최초 학적 정보 저장 → `201` + UUID + `Location` 헤더 |
+| GET | `/api/db/profiles/{id}` | 저장된 학적 정보 조회 |
+| PUT | `/api/db/profiles/{id}` | 학적 정보 전체 교체 |
+| GET | `/api/db/health` | Qdrant 연결 확인 (데이터 변경 없음) |
+| GET | `/api/health` | 백엔드 실행 상태 |
 
-- 기준일: **2026-10-03**
-- 컷오프: **2026-07-02** (이 날짜 이전 제외)
+### 공지 / 크롤러
+| 메서드 | 엔드포인트 | 용도 |
+|---|---|---|
+| GET | `/api/notices` | 실제 수집 공지 조회 (`items, total, mode, sources, fetchedAt`) |
+| POST | `/api/crawl` | 공지 목록 재수집 (최소 30초 간격) |
+| GET | `/api/images/{id}` | 첨부/본문 이미지 프록시 (16자리 hex id) |
 
-### 동작
-- pagination을 따라가며 최근 3개월 공지를 수집
-- source당 최대 **8페이지**
-- source당 최대 **60건** 안전장치
-- 오래된 공지만 나오는 페이지에 도달하면 pagination 중단 (과도한 요청 방지)
-- 2026-07-02 이전 공지는 제외
-- 고정글/상단공지라도 날짜가 컷오프 이전이면 제외
-
-### 날짜 확정 순서
-- 목록에 날짜가 있으면 사용
-- 목록에 날짜가 없으면 상세 페이지에서 작성일 파싱
-- 상세에서도 확인 불가 시 `dateUnknown: true`로 표시 후 유지
-
-### 검증 결과 (최근 크롤)
-- 가장 오래된 확인 가능 공지 날짜: **2026-07-07**
-- 2026-07-02 이전 공지: **0건**
-- dateUnknown 공지는 별도 표시
+### 에러 규약
+`{ error: { code, message, details? } }`
+400=JSON/UUID, 403=미허용 Origin, 404=없음, 405=메서드, 413=크기 초과(32KB), 415=형식, 422=검증 실패, 502=전체 수집 실패, 503=DB 장애/인증/구조.
 
 ---
 
-## 4. 상세 본문 추출
+## 4. 사용자(학적) 프로필 모델 (실제 구현)
 
-> 상태: **구현 완료** (일부 사이트 정확도 보강 중)
-
-공지 상세 페이지에서 실제 본문 내용을 수집한다. 국민대 CMS는 본문이 `fr-view` / `b-content-box`에 있으며, LNB 메뉴(`data-cms-content`, `lnb`, `gnb`)는 본문에서 제외한다.
-
-### contentStatus
-본문 상태를 다음과 같이 구분한다.
-
-- `text_extracted` — 실제 텍스트 본문 추출 성공
-- `image_only` — 본문이 이미지 중심이라 텍스트 추출이 어려운 공지
-- `attachment_only` — 텍스트 본문 없이 첨부파일만 있는 공지
-- `extraction_failed` — 본문/이미지/첨부 모두 확인 불가
-
-### 최근 검증 기준
-- text_extracted: 약 134건
-- image_only: 약 91건
-- extraction_failed: 소수
-
-이미지형(`image_only`) 공지는 현재 텍스트 기반 분석에서 제한이 있을 수 있음을 명시한다. (Vision AI/OCR은 계획 단계)
-
----
-
-## 5. 데이터 정규화
-
-> 상태: **구현 완료**
-
-모든 공지는 공통 포맷으로 정규화한다.
+> 상태: **구현 완료** (프론트 입력 모델과 백엔드 스키마 일치)
 
 ```json
 {
-  "id": "cs-2868",
-  "articleId": "2868",
-  "title": "2026 AI역량평가 접수 안내",
-  "date": "2026-09-11",
-  "dateUnknown": false,
-  "url": "https://cs.kookmin.ac.kr/news/notice/2868",
-  "content": "정제 텍스트 본문 (문단·표 구분 보존, 길이 제한 없음)",
-  "contentHtml": "원본 본문 HTML",
-  "images": ["https://..."],
-  "attachments": [{ "name": "파일명.pdf", "url": "https://..." }],
-  "contentStatus": "text_extracted",
-  "sourceCollege": "소프트웨어융합대학",
-  "sourceDepartments": ["소프트웨어학부", "인공지능학부"],
-  "sourceName": "국민대학교 소프트웨어융합대학",
-  "sourceType": "website"
+  "studentType": "대학원",
+  "college": "소프트웨어융합대학원",
+  "major": "AI",
+  "grade": 1,
+  "interests": ["취업", "인턴", "AI/데이터", "공모전"],
+  "customInterests": [],
+  "keywords": ["AI", "데이터", "해커톤"]
 }
 ```
 
-### ID / 중복 제거
-- `id`는 게시물 번호 기반 고정 ID (`<source key>-<articleId>`). 예: `design-12465`
-- URL에서 목록 이동용 파라미터(`page`, `article.offset`, `articleLimit` 등)는 제거하고, 게시물 식별 파라미터(`articleNo`, `idx`, `seq` 등)는 유지한 canonical URL 사용
-- 중복 제거: 게시물 번호(ID) 기준 (보조: canonical URL, title+date). 페이지별 반복 공지는 1건으로 통합
+### 검증 규칙 (`backend/src/db/profile-schema.mjs`)
+- 필수: `studentType`, `college`, `major`, `grade`, `interests`(1개 이상)
+- `studentType`: `학부` / `대학원`
+- `grade`: 정수. 학부 1~4, 대학원 1~3
+- `college` / `major`: 최대 100자
+- `interests` / `customInterests` / `keywords`: 각 항목 최대 50자, 배열 최대 20개
+- `customInterests` / `keywords`: 생략 시 빈 배열. 앞뒤 공백·중복 정리. 추가 필드/형식 오류는 거부
+- 본문 최대 32KB
 
-### 정렬
-- 최신순 (작성일 내림차순)
+### 저장 응답 (StoredProfile)
+```json
+{ "id": "uuid", "kind": "academic_profile", "schemaVersion": 1,
+  "profile": { ... }, "createdAt": "...", "updatedAt": "..." }
+```
+- `id`는 서버가 생성한 UUID = Qdrant point ID, 학적 정보는 payload에 저장
+- `vectors: {}` / `vector: {}` point 사용 (임베딩 미생성, 벡터 검색 미수행)
+- `wait=true`로 작업 완료 확인 후 성공 응답
+
+> 변경점 note: 기존 프로토타입은 `keywordsText`(문자열) + `grade`(문자열, 예: "석사")였으나,
+> 실제 백엔드는 `college`(명칭), `grade`(정수), `interests`/`customInterests`/`keywords`(배열)로 통일되었다.
 
 ---
 
-## 6. 사용자 프로필 및 관심사
+## 5. 공지 데이터 수집 (크롤러)
+
+> 상태: **구현 완료** (일부 source 정확도 보강 중)
+
+`backend/src/crawler.mjs`가 학교·단과대학 공지의 목록·본문·첨부·이미지 수집, 정규화, 캐시를 담당한다.
+
+- 수집 대상: 국민대학교 단과대학 공지 게시판 (source map)
+- source별 HTML 구조 대응 parser (`<tr>`/`<li>` 혼합, `.do` CMS, 숫자 ID 상대경로, 리스트형)
+- 게시판당 최대 12건, 상세 차수 수집
+- 목록 10분 / 본문 1시간 캐시, 강제 갱신(`/api/crawl`) 최소 30초 간격
+- 모든 출처 실패 시 HTTP 502, 일부 실패 시 `mode: mixed`
+- 백엔드는 샘플 공지로 바꾸지 않으며, DB가 없어도 크롤링은 동작
+- 크롤링 결과의 자동 DB 저장, `/api/analyze`, AI 임베딩은 **미구현(계획)**
+- 외부 JSON 파일의 DB 저장은 `scripts/import-notices.mjs`로 수행
+
+### 공지 payload (`kmu_notices_raw_v1`)
+```json
+{
+  "kind": "notice",
+  "schemaVersion": 1,
+  "notice": { "...": "제목/본문/HTML/출처/이미지/첨부/추출 상태" },
+  "analysisStatus": "pending",
+  "needsOcr": false,
+  "needsAttachmentExtraction": false,
+  "reviewRequired": false,
+  "assetDirectory": "..."
+}
+```
+- 본문은 길이 제한 없이 보존, 이미지·첨부 미처리 상태 명시
+- OCR·PDF/HWP·이미지 다운로드는 **다음 단계(계획)**
+
+> 참고: 로컬 프로토타입의 `mobile-android/local-crawler/`(독립 Node 서버, `GET /api/notices`,
+> `output/*.json` 저장)는 실험·대용 수집기로 유지되며, 통합 백엔드의 크롤러와 역할이 겹친다.
+> 통합본 기준의 공식 크롤러는 `backend/src/crawler.mjs`다.
+
+---
+
+## 6. 최근 3개월 수집 정책
+
+> 상태: **구현 완료** (로컬 크롤러 기준 검증) · 백엔드 반영은 **보강 중**
+
+- 기준일 2026-10-03, 컷오프 **2026-07-02** (이전 제외)
+- pagination 추적, 오래된 페이지 도달 시 중단 (과도한 요청 방지)
+- 목록에 날짜 없으면 상세 작성일 파싱, 그래도 없으면 `dateUnknown: true`
+- 검증(로컬 크롤러): 가장 오래된 공지 2026-07-07, 컷오프 이전 0건
+
+---
+
+## 7. 사용자 프로필 및 관심사 (프론트)
 
 > 상태: **구현 완료**
 
-사용자는 다음 정보를 설정할 수 있다.
-- 학적 / 단과대학 / 학과·전공 / 학년 / 관심 분야 / 관심 키워드
+사용자는 학적 / 단과대학 / 학과·전공 / 학년 / 관심 분야 / 관심 키워드를 설정한다.
 
 ### 기본 관심 분야
 취업 / 인턴 / 장학금 / 공모전 / AI·데이터 / 특강 / 대학원 / 수강신청 / 교환학생 / 교내행사
 
-### 사용자 직접 추가 관심 분야
-예: 해커톤, 금융, 창업, 연구, 봉사
-- 추가 즉시 선택 상태
-- 중복/빈 값 방지 (대소문자·공백 차이 포함)
+### 사용자 직접 추가 관심 분야 (`customInterests`)
+- 추가 즉시 선택 상태 / 중복·빈 값 방지 / 삭제 가능 (기본 분야는 삭제 불가)
 - Opportunity Score 즉시 반영
-- 직접 추가한 항목만 삭제 가능 (기본 분야는 삭제 불가)
+- 백엔드 프로필의 `customInterests` 배열로 저장
 
 ---
 
-## 7. Opportunity Score
+## 8. Opportunity Score
 
-> 상태: **구현 완료** (deterministic logic 유지)
+> 상태: **구현 완료** (deterministic logic)
 
-- 관심사 일치도: 40
-- 지원 대상 적합성: 30
-- 마감 긴급도: 20
-- 관심 키워드 일치: 10
-- 총점: 100
-
-AI가 점수를 직접 결정하지 않는다. 동일 입력 → 동일 결과.
-
-프로필이나 관심사 변경 시:
-- `useMemo` 기반 점수 재계산
-- Top 3 추천 순위 즉시 변경
+- 관심사 일치도 40 / 지원 대상 적합성 30 / 마감 긴급도 20 / 관심 키워드 일치 10 = 100
+- AI가 점수를 직접 결정하지 않음. 동일 입력 → 동일 결과
+- 프로필/관심사 변경 시 즉시 재계산, Top 3 순위 즉시 변경
 
 ---
 
-## 8. 개인화 추천 UI (캐러셀)
+## 9. 프론트 화면 구성
 
 > 상태: **구현 완료**
 
-기존 Top 3 고정 카드형 UI에서 캐러셀 구조로 변경됐다.
+`front/components/kmu/*` 기준.
 
-### 추천 캐러셀
-- 상위 3개 공지를 슬라이드로 표시
-- 첫 슬라이드 = Opportunity Score 1위
-- 좌/우 이동 + 하단 pagination indicator
-- 프로필 변경으로 Top 3가 바뀌면 첫 슬라이드로 reset
+- `HomeDashboard` / `CampusDashboard` — 메인 대시보드
+- `ProfilePanel` — 학적/관심 설정
+- `InterestSelector` — 기본 + 직접 추가 관심 분야
+- `SummaryPanel` — KPI 요약
+- `NoticeFeed` / `NoticeList` / `NoticeListItem` — 공지 목록
+- `TopNoticeCard` / `HomeNoticeCard` — 상위 추천 카드
+- `NoticeDetail` — 공지 상세
+- `DeadlineBadge`(D-Day) / `SourceBadge`(출처) / `Icon`
+- 데이터: `front/data/notices.js`, `front/data/profile.js` / 로직: `front/lib/recommendations.js`, `front/lib/dates.js`, `front/lib/profile.js`
 
-### 슬라이드 구성
-대표 이미지 영역 / ranking badge / 제목 / Opportunity Score / D-Day / 카테고리 / AI 요약 / AI 추천 이유(강조 박스) / 원문 보기
-
----
-
-## 9. 공지 이미지 처리
-
-> 상태: **구조 구현 완료 · 실제 생성 API 미연결**
-
-- `imageService.js` 구현
-- 제목/카테고리/요약/키워드 기반 이미지 prompt 생성
-- 동일 공지 재생성 방지를 위한 세션 cache
-- API 미연결/실패 시 category fallback image(SVG) 사용
-
-명시: **“AI 이미지 생성 구조는 준비되었으나 실제 생성 API는 아직 미연결”**. 향후 실제 이미지 생성 API 연결 가능.
+> 참고: 로컬 프로토타입의 Top 3 캐러셀·AI 공지 검색 챗봇·공지 실행 비서는 통합 프론트(`front/`)에
+> 아직 1:1로 이식되지 않았다. 통합본 반영은 **계획** 항목으로 둔다. (아래 15장)
 
 ---
 
-## 10. AI 공지 탐색 챗봇
+## 10. D-Day / 마감 처리
 
 > 상태: **구현 완료**
 
-사용자는 자연어로 원하는 공지를 검색할 수 있다.
-- 예: "AI 해커톤 관련 공지 찾아줘", "이번 주 마감 취업 공지 보여줘", "대학원생 지원 가능한 장학금 알려줘"
-
-### AI 역할
-질문 의도 분석 / 키워드 추출 / 카테고리·대상·마감 조건 구조화
-
-### 코드 역할
-실제 공지 데이터 필터링 / 조건 검증 / 정렬 / Top N 선정
-
-- 존재하지 않는 공지를 생성하지 않는다.
-- AI 실패 시 deterministic keyword search fallback.
+- 마감일 존재 시 남은 일수 계산 (`front/lib/dates.js`, `DeadlineBadge`)
+- 마감 임박 강조, 날짜 미상 공지 별도 처리
 
 ---
 
-## 11. 공지 실행 비서
+## 11. 프론트–백엔드 연결
+
+> 상태: **구현 완료** (프로필) · **계획** (공지 조회 연결)
+
+- 프론트의 같은 origin `/api/*` → 백엔드 프록시 (Next.js route/rewrite 또는 dev proxy)
+- 프로필 흐름: 최초 `POST /api/db/profiles` → 반환 `id` 보관 → 설정 변경 `PUT`, 복원 `GET`
+- 실패 시 입력 화면 유지 + 에러 표시 (서비스 중단 없음)
+- `backend/examples/profile-client.mjs`로 프론트 핸들러에 연결
+- 공지 조회를 `/api/notices`로 연결하는 작업은 **계획** (현재 화면은 로컬 데이터로 시연 가능)
+
+---
+
+## 12. DB / 저장소
 
 > 상태: **구현 완료**
 
-기존 `AI로 정리하기`를 실행 중심으로 확장했다. 검색된 실제 공지들을 대상으로 아래 항목을 구조화해 보여준다.
+- Qdrant payload-only 컬렉션에 프로필 저장 (`kmu_academic_profiles_v1`)
+- 공지 원문은 `kmu_notices_raw_v1`
+- `.env`는 git 제외, API로 노출 금지
+- 프로필 데이터는 서버 로그에 남기지 않음
+- 기존 컬렉션 구조가 다르면 503으로 거부(삭제/덮어쓰기 안 함)
 
-- 공지명
-- 지원/참여 대상
-- 마감일 / D-Day
-- 핵심 내용
-- 준비해야 할 것
-- 해야 할 일 체크리스트
-- 원문 링크
-
-### Hallucination 방지
-준비물은 공지 본문에 실제 근거가 있는 경우에만 추출한다. (예: 포트폴리오, 이력서, 팀 구성, 원서, 어학성적)
-근거가 없으면 `공지 원문 확인 필요`로 표시한다.
-
-체크리스트 예: 신청 → 준비물 준비 → 마감 전 최종 제출. (마감일이 있는 경우에만 마감 전 제출 항목 포함)
+> 변경점 note: 기존 PRD의 "LocalStorage → Supabase" 방향은 폐기되었고, 실제 저장소는 **Qdrant**다.
 
 ---
 
-## 12. DB 구조 (Supabase)
-
-> 상태: **연동 구조 구현 완료 · 실제 production 연결은 계획**
-
-LocalStorage 대신 Supabase 사용 방향을 유지한다.
-
-- Supabase 연동 코드 구조 존재
-- 환경변수 미설정 시 session state fallback
-- 환경변수: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
-- 미설정 또는 실패 시: 세션 state로 계속 동작, 서비스 중단 없음
-
-저장 대상: 사용자 프로필, 사용자 추가 관심 분야
-회원가입/OAuth는 이번 범위에서 제외.
-
----
-
-## 13. 크롤러 서버
+## 13. Fallback 구조
 
 > 상태: **구현 완료**
 
-위치: `mobile-android/local-crawler/server.mjs`
-API: `GET /api/notices`
-
-```json
-{
-  "success": true,
-  "count": 226,
-  "usedFallback": false,
-  "sourceStatus": [
-    { "source": "cs", "requestOk": true, "listParsed": 60, "detailOk": 30, "count": 19, "status": "ok" }
-  ],
-  "notices": [ ... ]
-}
-```
-
-### 동작
-source별 parser / timeout / `Promise.allSettled` / source별 실패 격리 / pagination / 상세 본문 / 상세 날짜 / 중복 제거 / 3개월 필터 / JSON 결과 저장
-
-### sourceStatus (요청 vs 파싱 구분)
-- `requestOk` — 목록 페이지 HTTP 요청 성공 여부
-- `listParsed` — 목록에서 파싱된 링크 수
-- `detailOk` — 상세 본문 추출 성공 수
-- `count` — 최종 수집 수
-- `status` — `ok` / `empty_after_filter` / `list_parse_failed` / `request_failed`
-
-→ 0건이어도 "요청 성공 + 목록 파싱 실패"인지 "요청 자체 실패"인지 구분 가능.
+- 크롤링: 일부 source 실패 → 나머지 반환(`mode: mixed`), 전체 실패 → 502
+- DB: Qdrant 연결/저장 실패 → 503, 프론트는 입력 유지 + 에러 표시 (화면 중단 없음)
+- 프로필 저장 실패 시 재시도 안내 (중복 ID 가능 → 저장 중 버튼 비활성화 권장)
 
 ---
 
-## 14. 크롤 결과 파일 저장
-
-> 상태: **구현 완료**
-
-- 크롤링 결과를 `output/` 폴더에 JSON으로 자동 저장 (`saveResult()`)
-- `notices-latest.json` (최신) + 타임스탬프 사본
-- 저장 실패해도 API 응답에는 영향을 주지 않음
-- `output/`은 매번 변경되는 산출물이므로 `.gitignore` 처리
-- 전달용 JSON은 별도 복사 가능 (예: 루트/바탕화면의 `kmu-notices.json`)
-
----
-
-## 15. Fallback 구조
-
-> 상태: **구현 완료**
-
-### 크롤링
-- 일부 source 실패 → 나머지 source 결과 정상 반환
-- 전체 실패/0건 → server sample JSON
-- crawler server 미실행 → frontend `sampleNotices` fallback
-
-### AI
-- AI 분석 실패 → Local Mock
-- 챗봇 의도 분석 실패 → keyword deterministic fallback
-
-### 이미지
-- AI 이미지 생성 실패 → category fallback
-
-### DB
-- Supabase 실패/미설정 → session state
-
-어떤 외부 기능이 실패해도 핵심 Dashboard는 중단되지 않는다.
-
----
-
-## 16. UI / UX
-
-> 상태: **구현 완료**
-
-premium dashboard UI 적용 완료.
-
-디자인 방향: 국민대 공식 서비스 느낌 + 현대적 AI SaaS / 네이비·블루 / 밝은 배경 / 넉넉한 여백 / subtle shadow / premium card.
-
-구성: 얇은 top header + status pill / 왼쪽 profile panel / KPI 4 cards / Top 3 carousel / AI notice search / 전체 공지 list / 실행 비서 card.
-
-### 데이터 소스 모드
-- `VITE_DATA_MODE=live` → 로컬 크롤러 API (국민대 실제 공지), 헤더 `LIVE · 국민대 실제 공지` pill
-- `VITE_DATA_MODE=demo` → sampleNotices (안정 데모), 헤더 `DEMO · Sample Data` pill
-
----
-
-## 17. 현재 검증 상태
+## 14. 검증 상태
 
 ### 검증 완료
-- npm build 성공 / 콘솔 에러 없음
-- 관심 분야 추가/삭제
-- Opportunity Score 재계산 / Top 3 변경 / D-Day
-- crawler fallback / AI fallback
-- 챗봇 검색 / 실행 비서 / carousel / JSON 저장
-- 실제 16개 단과대 source map / 최근 3개월 필터 / 상세 본문 추출
+- 백엔드 단위/HTTP/모의 DB 테스트 (`node --test test/*.test.mjs`)
+- 실제 Qdrant 통합 테스트 (`scripts/integration.mjs` — `kmu_test_<UUID>` 임시 컬렉션 생성 후 정리)
+- 프로필 CRUD / 검증 규칙 / 에러 코드
+- 크롤러 목록·본문·이미지 수집, 캐시, 502/mixed 처리
+- 프론트 대시보드 / 관심사 설정 / Opportunity Score / D-Day
 
-### 남은 보완
-- 조형대(design) 상세 제목 parser 정확도
-- 자동차모빌리티대(auto) 상세 본문 정확도
-- image_only 공지에 대한 실제 Vision AI/OCR 분석
-- 실제 Supabase 환경변수(production) 연결
-- 실제 AI image generation API 연결
+### 남은 보완 / 미완
+- 공유 원격 서버 실제 DB 저장 검증 (인증 미설정으로 미완 — 자체 설정 환경에서 재검증 필요)
+- 특정 단과대(design 제목, auto 본문) 상세 추출 정확도
+- 프론트 ↔ `/api/notices` 공지 조회 연결
 
 ---
 
-## 18. 차별화 포인트
+## 15. 구현 완료 / 계획 구분
 
-단순 공지 추천이 아니다.
+### 구현 완료
+- Next.js 프론트 대시보드 (`front/`)
+- Node 백엔드 + Qdrant 프로필 CRUD API (`backend/`)
+- 공지 크롤러 (목록·본문·첨부·이미지, 캐시, 502/mixed)
+- OpenAPI 3.1 명세
+- 학적 프로필 모델/검증 (studentType·college·major·grade·interests·customInterests·keywords)
+- Opportunity Score / D-Day (deterministic)
+- 관심사 추가·삭제
+- 공지 원문 import 스크립트 (`import-notices.mjs`)
+- Fallback (크롤 mixed/502, DB 503)
 
-1. 국민대학교 단과대학별 실제 공지를 직접 수집
-2. 소속/전공/관심 기반 개인화
-3. 자연어로 원하는 공지를 탐색
-4. 결과를 실제 공지 기준으로 요약
-5. 공지를 읽는 데서 끝나지 않고 준비물/체크리스트까지 실행 계획으로 변환
+### 계획 (미구현)
+- `/api/analyze` + AI 임베딩/벡터 검색
+- 자연어 공지 검색 챗봇 (통합 프론트 이식)
+- 공지 실행 비서 (준비물/체크리스트, 통합 프론트 이식)
+- Top 3 캐러셀 통합 프론트 이식
+- image_only 공지 Vision AI / OCR, PDF·HWP 첨부 추출
+- 실제 AI 이미지 생성 API 연결
+- 프론트 ↔ `/api/notices` 연결, 원격 DB production 인증·배포(HTTPS/reverse proxy)
+- 사용자 인증/회원가입
+
+---
+
+## 16. 차별화 포인트
+
+1. 국민대학교 단과대학별 실제 공지를 직접 수집 (`backend/src/crawler.mjs`)
+2. 소속/전공/관심 기반 개인화 (Qdrant 프로필 + deterministic Score)
+3. (계획) 자연어로 원하는 공지를 탐색
+4. (계획) 결과를 실제 공지 기준으로 요약
+5. (계획) 공지를 읽는 데서 끝나지 않고 준비물/체크리스트까지 실행 계획으로 변환
 
 ### 핵심 메시지
 **“추천에서 끝나는 공지 AI가 아니라, 실제 행동까지 연결하는 대학생활 공지 비서.”**
 
 ---
 
-## 19. 구현 완료 / 계획 구분
+## 17. 저장소 / 실행
 
-### 구현 완료
-- 실제 국민대 공지 크롤링 (16개 source map)
-- 최근 3개월 필터 / pagination
-- 상세 본문·상세 날짜 추출 / contentStatus
-- 게시물 번호 기반 고정 ID + 중복 제거
-- images / attachments 수집
-- Opportunity Score / D-Day
-- 관심사 추가·삭제
-- Top 3 캐러셀
-- 자연어 공지 검색 (챗봇)
-- 공지 실행 비서
-- Supabase 연동 구조 + DB fallback
-- AI 이미지 fallback 구조
-- 크롤 결과 JSON 저장
-- 데이터 소스 모드 (live/demo)
-
-### 추가 보완 예정 (계획)
-- 조형대(design) title parser 정확도 개선
-- 자동차모빌리티대(auto) 본문 추출 정확도 개선
-- image_only 공지 Vision AI / OCR 분석
-- PDF/HWP 첨부 내용 추출
-- 실제 Supabase production 연결
-- 실제 AI image generation API 연결
-
----
-
-## 부록. 기술 구성 / 프로젝트 구조
-
-### 기술 구성
-- 개발 도구: Kiro
-- Frontend: React + Vite (JavaScript)
-- State: React State / Storage: Supabase (미설정 시 session state fallback)
-- AI: aiService(공지 분석/요약) · aiSearchService(자연어 의도 분석/검색 정리)
-- 이미지: imageService (prompt 생성 + category fallback)
-- 크롤러: Node 로컬 서버 (`mobile-android/local-crawler/server.mjs`)
-- Fallback: Local Sample Data / Local Mock Response / keyword deterministic search / category fallback image
-
-### 프로젝트 구조 (요약)
+### 저장소 구조 (팀 통합본)
 ```text
-src/
-  components/  ProfilePanel, InterestSelector, SummaryPanel,
-               NoticeCard, NoticeList, NoticeCarousel, NoticeSearchChat
-  data/        sampleNotices.js
-  services/    crawlerService, aiService, aiSearchService,
-               imageService, supabaseClient, supabaseService
-  utils/       normalizeNotice, calculateOpportunityScore,
-               calculateDDay, filterNotices, validation
-  App.jsx / main.jsx
-
-mobile-android/local-crawler/
-  server.mjs            # 크롤러 서버 (GET /api/notices)
-  sampleNotices.json    # 전체 실패/0건 시 fallback
-  output/               # 크롤 결과 JSON (gitignore)
-  run-crawler.bat / README.md
-start-kmu-way.bat        # 크롤러 실행 + 브라우저 오픈 런처
+front/      Next.js 16 + React 19 + Tailwind v4 (App Router, components/kmu/*)
+backend/    Node ≥22 무의존성 서버 + 크롤러 + Qdrant 연동 (src/, openapi.json)
+docs/       notice-data-spec.md, screenshots/
+docker-compose.yml / backend/compose.yaml   (로컬 Qdrant 선택 실행)
+mobile-android/local-crawler/   로컬 실험용 크롤러 (output/*.json, 선택)
+prd.md
 ```
+
+### 실행
+- 백엔드: `cd backend` → `.env` 설정 → `node --env-file-if-exists=.env src/server.mjs` (Windows `start.cmd`)
+- 프론트: `cd front` → `npm run dev` (Next.js)
+- 백엔드 기본 주소 `http://127.0.0.1:8001`, 상태 `/api/health`, DB 상태 `/api/db/health`
+- 원격 HTTP DB는 `QDRANT_ALLOW_INSECURE_HTTP=true` 명시 시에만 허용(민감 데이터는 HTTPS/SSH 터널 사용)
 
 ---
 
 ## Kiro 구현 지침 (유지)
 
-1. 이 문서를 프로젝트 루트의 `prd.md`로 유지한다.
-2. 실제 구현된 기능과 계획 중인 기능을 항상 구분해 기술한다.
-3. 홈페이지 크롤링은 국민대학교 지정 단과대학 공지 게시판으로 제한한다. (로그인/인증 페이지 미접근)
-4. Opportunity Score와 D-Day는 deterministic logic으로 유지한다.
-5. AI 챗봇은 "공지 생성"이 아니라 "공지 탐색·필터링·요약" 역할만 한다.
-6. 모든 외부 기능(크롤링/AI/이미지/DB)에 fallback을 유지한다.
-7. 핵심 데모는 "프로필에 따라 같은 공지의 추천 순위가 달라지는 것" + "실행 비서로 행동까지 연결"이다.
+1. 실제 구현된 기능과 계획 중인 기능을 항상 구분해 기술한다.
+2. Opportunity Score와 D-Day는 deterministic logic으로 유지한다.
+3. AI 챗봇/실행 비서는 "공지 생성"이 아니라 "탐색·필터링·요약" 역할만 한다. (이식 시 유지)
+4. 크롤링은 국민대학교 지정 단과대학 공지로 제한한다. (로그인/인증 페이지 미접근)
+5. 모든 외부 기능(크롤링/DB/이미지/AI)에 fallback을 유지한다.
+6. `.env`·자격증명은 커밋 금지, API 노출 금지.
+7. 핵심 데모는 "프로필에 따라 추천 순위가 달라지는 것" + "실제 행동까지 연결".
