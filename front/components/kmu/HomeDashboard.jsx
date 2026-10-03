@@ -1,0 +1,103 @@
+"use client";
+
+import * as React from "react";
+import { Fragment } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { HomeNoticeCard } from "./HomeNoticeCard";
+export function HomeDashboard({
+  top3: top3,
+  savedIds: savedIds,
+  onSave: onSave,
+  onOpen: onOpen,
+  tiles: tiles,
+  onGo: onGo,
+  onChat: onChat,
+  who: who,
+}) {
+  const [question, setQuestion] = React.useState("");
+  return (
+    <Fragment>
+      <section aria-labelledby="homeTitle">
+        <div className="section-head">
+          <div>
+            <div className="eyebrow">{"FOR YOU · TODAY"}</div>
+            <h2 id="homeTitle" className="home-h">
+              {"맞춤 공지"}
+            </h2>
+            <p>
+              {who}
+              {" 기준으로 오늘 놓치면 아쉬운 공지 TOP 3예요."}
+            </p>
+          </div>
+          <Button
+            variant="original"
+            className="text-btn"
+            onClick={() => onGo("notice")}
+          >
+            {"전체 보기 →"}
+          </Button>
+        </div>
+        <div className="home-grid grid grid-cols-1 gap-4 min-[1121px]:grid-cols-3">
+          {top3.map((p) => (
+            <HomeNoticeCard
+              key={`${p.notice.id}-${p.rank}`}
+              item={p}
+              saved={savedIds.includes(p.notice.id)}
+              onSave={onSave}
+              onOpen={onOpen}
+            />
+          ))}
+          {top3.length === 0 && (
+            <div
+              className="empty-state show"
+              style={{
+                gridColumn: "1 / -1",
+              }}
+            >
+              {"표시할 공지가 없어요."}
+            </div>
+          )}
+        </div>
+      </section>
+      <section className="tile-row" aria-label="바로가기">
+        {tiles.map((p) => (
+          <Button
+            variant="original"
+            key={`${p.view}-${p.label}`}
+            className="tile"
+            onClick={() => onGo(p.view)}
+          >
+            <span className="tile-label">{p.label}</span>
+            <span className="tile-num">
+              {String(p.value).padStart(2, "0")}
+              <small>{p.unit}</small>
+            </span>
+            <span className="tile-note">{p.note}</span>
+          </Button>
+        ))}
+      </section>
+      <form
+        className="chatbar"
+        onSubmit={(p) => {
+          p.preventDefault();
+          onChat(question);
+          setQuestion("");
+        }}
+      >
+        <strong>{"챗봇"}</strong>
+        <Input
+          original={true}
+          className="text-input"
+          value={question}
+          onChange={(p) => setQuestion(p.target.value)}
+          placeholder="Chat-Bot과 함께 계획을 짜봅시다!"
+          aria-label="챗봇에게 질문하기"
+        />
+        <Button variant="original" type="submit" className="btn-sm solid">
+          {"보내기"}
+        </Button>
+      </form>
+    </Fragment>
+  );
+}
