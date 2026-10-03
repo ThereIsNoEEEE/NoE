@@ -5,6 +5,7 @@
 | 서비스 | 주소 | 비고 |
 | --- | --- | --- |
 | Front (Next.js) | http://14.36.30.189:3001/ | |
+| Backend (Node.js) | http://127.0.0.1:8001 | 서버 로컬 전용. `/api/health`, `/api/db/health` |
 | Qdrant REST API | http://14.36.30.189:13000 | 대시보드: http://14.36.30.189:13000/dashboard |
 | Qdrant REST API (내부망) | http://192.168.0.236:6333 | 외부 13000 → 서버 3000 → 컨테이너 6333 |
 | Qdrant gRPC (내부망) | 192.168.0.236:6334 | 외부 미개방 |
