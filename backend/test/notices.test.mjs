@@ -71,3 +71,27 @@ test('Qdrant protocol: create payload-only collection, upsert with wait=true, re
   await assert.rejects(unauthorized.ensureCollection(), QdrantError);
   assert.throws(() => new NoticesRepository({}, 'kmu_academic_profiles_v1'), /프로필/);
 });
+
+test('already-normalized unavailable references can be imported again', () => {
+  const first = prepareNotices([{ ...notice, images: [{ url: 'file:///C:/temp/image.jpg' }] }]);
+  const second = prepareNotices([first.points[0].payload.notice]);
+  assert.equal(second.errors.length, 0);
+  assert.equal(second.summary.unavailableAssetCount, 1);
+});
+
+test('update adapter preserves valid existing title/body and local assets', async () => {
+  const { mergeNotice, canonicalUrl } = await import('../scripts/update-notices.mjs');
+  const previous = { ...notice, images: [{ url: null, localPath: 'assets/poster.png', text: null, textStatus: 'not_processed' }] };
+  const incoming = { ...notice, title: 'SW 학사공지', articleId: '2872', sourceId: undefined, content: '', contentStatus: 'image_only', images: ['https://cs.kookmin.ac.kr/images/common/logo.png','https://wfile.kookmin.ac.kr/poster.png?type=image&amp;id=123'] };
+  const result = mergeNotice(incoming, previous, '2026-10-03T00:00:00Z');
+  assert.equal(result.notice.title, previous.title);
+  assert.equal(result.notice.content, previous.content);
+  assert.equal(result.notice.images.length, 2);
+  assert.equal(result.notice.images[0].localPath, 'assets/poster.png');
+  assert.equal(result.notice.images[1].url, 'https://wfile.kookmin.ac.kr/poster.png?type=image&id=123');
+  assert.equal(result.notice.sourceId, 'cs');
+  assert.equal(prepareNotices([result.notice]).errors.length, 0);
+  assert.equal(canonicalUrl('https://law.kookmin.ac.kr/notice?mode=view&articleNo=12&article.offset=10'), 'https://law.kookmin.ac.kr/notice?articleNo=12&mode=view');
+  assert.equal(mergeNotice(incoming, null).skip, 'generic_title_without_existing_notice');
+  assert.equal(mergeNotice({ ...incoming, contentStatus: 'extraction_failed' }, previous).skip, 'extraction_failed');
+});
