@@ -1,10 +1,8 @@
 "use client";
 
-import * as React from "react";
 import { Fragment } from "react";
 import { Button } from "@/components/ui/button";
 import { HomeNoticeCard } from "./HomeNoticeCard";
-import { ChatPanel } from "./ChatPanel";
 export function HomeDashboard({
   top3: top3,
   savedIds: savedIds,
@@ -54,7 +52,7 @@ export function HomeDashboard({
               }}
             >
               {
-                "조건에 맞는 공지가 없어요. 설정에서 관심 분야·키워드를 늘려 보세요."
+                "조건에 맞는 공지가 없어요. 나의 정보에서 관심 분야·키워드를 늘려 보세요."
               }
             </div>
           )}
@@ -77,7 +75,6 @@ export function HomeDashboard({
           </Button>
         ))}
       </section>
-      <ChatPanel />
     </Fragment>
   );
 }

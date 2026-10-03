@@ -22,6 +22,8 @@ import { NoticeList } from "./NoticeList";
 import { NoticeDetail } from "./NoticeDetail";
 import { HomeDashboard } from "./HomeDashboard";
 import { NoticeFeed } from "./NoticeFeed";
+import { ThemeToggle } from "./ThemeToggle";
+import { ChatbotWidget } from "./ChatbotWidget";
 import { CollectedNotices } from "./CollectedNotices";
 export function CampusDashboard() {
   const today = React.useMemo(() => new Date(), []);
@@ -199,7 +201,7 @@ export function CampusDashboard() {
       return;
     }
     if (onboarded) {
-      showToast("설정을 저장했어요. 추천 순위를 다시 계산했어요.");
+      showToast("나의 정보를 저장했어요. 추천 순위를 다시 계산했어요.");
     } else {
       setOnboarded(!0);
       writeStorage(ONBOARDED_STORAGE_KEY, !0);
@@ -290,8 +292,9 @@ export function CampusDashboard() {
       )}
     </div>
   );
-  const renderProfile = (S) => (
+  const renderProfile = (S, wide = false) => (
     <ProfilePanel
+      wide={wide}
       profile={profile}
       onChange={updateProfile}
       onStudentType={changeStudentType}
@@ -307,6 +310,9 @@ export function CampusDashboard() {
   if (!onboarded)
     return (
       <div className="onboard">
+        <div className="onboard-theme">
+          <ThemeToggle />
+        </div>
         <div className="onboard-inner">
           <div
             className="brand"
@@ -335,7 +341,7 @@ export function CampusDashboard() {
           </h1>
           <p className="onboard-copy">
             {
-              "학적·소속·관심 분야를 바탕으로 국민대 공지 중 나에게 필요한 것만 골라드려요. 나중에 설정에서 언제든 바꿀 수 있어요."
+              "학적·소속·관심 분야를 바탕으로 국민대 공지 중 나에게 필요한 것만 골라드려요. 나중에 나의 정보에서 언제든 바꿀 수 있어요."
             }
           </p>
           {renderProfile("시작하기")}
@@ -365,20 +371,14 @@ export function CampusDashboard() {
       <section>
         <div className="section-head">
           <div>
-            <div className="eyebrow">{"SETTINGS"}</div>
-            <h2 className="home-h">{"설정 · 나의 정보"}</h2>
+            <div className="eyebrow">{"MY INFO"}</div>
+            <h2 className="home-h">{"나의 정보"}</h2>
             <p>
               {"바꾸면 추천 순위가 바로 달라져요. 저장하면 홈으로 돌아가요."}
             </p>
           </div>
         </div>
-        <div
-          style={{
-            maxWidth: 420,
-          }}
-        >
-          {renderProfile("저장하고 추천 보기")}
-        </div>
+        {renderProfile("저장하고 추천 보기", true)}
         <CollectedNotices />
       </section>
     );
@@ -429,7 +429,7 @@ export function CampusDashboard() {
                 desc="내 학적\\xB7학년 조건에 맞고 점수가 50점 이상인 공지예요."
                 items={eligibleNotices}
                 onOpen={(S) => setSelectedNoticeId(S.notice.id)}
-                empty="지원 가능한 공지가 아직 없어요. 설정에서 관심 분야를 늘려 보세요."
+                empty="지원 가능한 공지가 아직 없어요. 나의 정보에서 관심 분야를 늘려 보세요."
               />
             );
           } else {
@@ -496,7 +496,7 @@ export function CampusDashboard() {
             variant="original"
             className="profile-mini profile-link"
             onClick={() => navigate("settings")}
-            aria-label="설정 열기"
+            aria-label="나의 정보 열기"
           >
             <div className="avatar">
               {profile.studentType === "대학원" ? "대" : "학"}
@@ -531,6 +531,7 @@ export function CampusDashboard() {
                 : "공지 수집 중…"}
           </div>
           <div className="top-actions">
+            <ThemeToggle />
             <Button
               variant="original"
               className="icon-btn"
@@ -558,6 +559,7 @@ export function CampusDashboard() {
           </footer>
         </div>
       </main>
+      <ChatbotWidget />
       <NoticeDetail
         item={selectedNotice}
         saved={
