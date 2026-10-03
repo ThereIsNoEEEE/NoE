@@ -1,5 +1,7 @@
 # NoE Backend
 
+팀원과 AI 개발 도구를 위한 [공지 데이터와 DB 개발 명세](../docs/notice-data-spec.md)를 참고하세요.
+
 `front`의 학사 정보 입력 모델(`studentType`, `college`, `major`, `grade`, `interests`, `customInterests`, `keywords`)에 맞춘 Node.js 백엔드입니다. Node.js 22 이상, 외부 npm 의존성 없이 실행합니다.
 
 ## 구성
