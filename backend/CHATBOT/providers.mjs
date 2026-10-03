@@ -4,10 +4,10 @@ import { validateVector } from './schema.mjs';
 // Vendor-neutral JSON adapter contract. Swap these adapters for a chosen SDK later.
 // Embeddings: POST {model, input: string} -> {embedding: number[]}
 // Generation: POST {model, messages, maxOutputTokens} -> {answer: string}
-async function postJson(config, body, timeoutMs, fetchImpl, kind) {
+async function postJson(config, body, timeoutMs, fetchImpl, kind, signal) {
   try {
     const response = await fetchImpl(config.url, {
-      method: 'POST', redirect: 'error', signal: AbortSignal.timeout(timeoutMs),
+      method: 'POST', redirect: 'error', signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs),
       headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}) },
       body: JSON.stringify(body),
     });
@@ -33,20 +33,20 @@ async function postJson(config, body, timeoutMs, fetchImpl, kind) {
 export class HttpEmbeddingProvider {
   constructor(config, timeoutMs, fetchImpl = fetch) { Object.assign(this, { config, timeoutMs, fetchImpl }); }
   isConfigured() { return Boolean(this.config.url && this.config.model && this.config.space); }
-  async embed(text) {
+  async embed(text, { signal } = {}) {
     if (!this.isConfigured()) throw new ApiError(503, 'EMBEDDING_NOT_CONFIGURED', '임베딩 API URL과 모델을 먼저 설정하세요.');
-    const result = await postJson(this.config, { model: this.config.model, input: text }, this.timeoutMs, this.fetchImpl, 'EMBEDDING');
-    return validateVector(result.embedding);
+    const result = await postJson(this.config, { model: this.config.model, input: text }, this.timeoutMs, this.fetchImpl, 'EMBEDDING', signal);
+    return validateVector(result?.embedding);
   }
 }
 
 export class HttpLlmProvider {
   constructor(config, timeoutMs, maxOutputTokens, fetchImpl = fetch) { Object.assign(this, { config, timeoutMs, maxOutputTokens, fetchImpl }); }
   isConfigured() { return Boolean(this.config.url && this.config.model); }
-  async generate(messages) {
+  async generate(messages, { signal } = {}) {
     if (!this.isConfigured()) throw new ApiError(503, 'LLM_NOT_CONFIGURED', 'LLM API가 미등록 상태입니다. 검색 문맥만 확인하려면 mode: prepare를 사용하세요.');
-    const result = await postJson(this.config, { model: this.config.model, messages, maxOutputTokens: this.maxOutputTokens }, this.timeoutMs, this.fetchImpl, 'LLM');
-    if (typeof result.answer !== 'string' || !result.answer.trim() || result.answer.length > 30000) throw new ApiError(502, 'LLM_RESPONSE_INVALID', 'LLM이 유효한 텍스트 답변을 반환하지 않았습니다.');
+    const result = await postJson(this.config, { model: this.config.model, messages, maxOutputTokens: this.maxOutputTokens }, this.timeoutMs, this.fetchImpl, 'LLM', signal);
+    if (typeof result?.answer !== 'string' || !result.answer.trim() || result.answer.length > 30000) throw new ApiError(502, 'LLM_RESPONSE_INVALID', 'LLM이 유효한 텍스트 답변을 반환하지 않았습니다.');
     return result.answer.trim();
   }
 }

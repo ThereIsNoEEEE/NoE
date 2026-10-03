@@ -21,17 +21,17 @@ export function safeSourceUrl(value) {
 
 export class QdrantRetriever {
   constructor(client, config) { Object.assign(this, { client, config }); }
-  async search(vector, topK) {
+  async search(vector, topK, { signal } = {}) {
     validateVector(vector);
     try {
-      assertVectorConfig(await this.client.collection(this.config.collection), this.config, vector.length);
+      assertVectorConfig(await this.client.collection(this.config.collection, { signal }), this.config, vector.length);
       const result = await this.client.request('POST', `${this.client.collectionPath(this.config.collection)}/points/query`, {
         query: vector, limit: topK, with_vector: false,
-        with_payload: ['kind', 'embeddingSpace', 'noticeId', 'chunkIndex', 'title', 'content', 'url', 'date'],
+        with_payload: ['kind', 'embeddingSpace', 'noticeId', 'rawPointId', 'sourceContentHash', 'chunkIndex', 'title', 'content', 'url', 'date', 'contentStatus', 'needsOcr', 'needsAttachmentExtraction', 'reviewRequired'],
         filter: { must: [{ key: 'kind', match: { value: 'notice_chunk' } }, { key: 'embeddingSpace', match: { value: this.config.embedding.space } }] },
         ...(this.config.vectorName ? { using: this.config.vectorName } : {}),
         ...(this.config.threshold === undefined ? {} : { score_threshold: this.config.threshold }),
-      });
+      }, { signal });
       if (!Array.isArray(result?.points)) throw new ApiError(502, 'CHATBOT_SEARCH_INVALID', '검색 결과 형식이 올바르지 않습니다.');
       const seen = new Set();
       return result.points.filter(point => {
@@ -41,6 +41,12 @@ export class QdrantRetriever {
       }).slice(0, topK).map(point => ({
         id: String(point.id), score: point.score,
         noticeId: String(point.payload.noticeId || '').slice(0, 200),
+        rawPointId: String(point.payload.rawPointId || '').slice(0, 100),
+        sourceContentHash: String(point.payload.sourceContentHash || '').slice(0, 128),
+        contentStatus: String(point.payload.contentStatus || 'unknown').slice(0, 50),
+        needsOcr: Boolean(point.payload.needsOcr),
+        needsAttachmentExtraction: Boolean(point.payload.needsAttachmentExtraction),
+        reviewRequired: Boolean(point.payload.reviewRequired),
         title: String(point.payload.title || '').slice(0, 300),
         content: point.payload.content.slice(0, 4000),
         url: safeSourceUrl(point.payload.url),

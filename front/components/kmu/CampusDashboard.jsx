@@ -13,7 +13,7 @@ import {
   writeStorage,
   loadProfile,
 } from "@/lib/profile";
-import { rankNotices } from "@/lib/recommendations";
+import { rankNotices, getTopNotices } from "@/lib/recommendations";
 import { loadNoticeData } from "@/services/notices";
 import { Icon } from "./Icon";
 import { ProfilePanel } from "./ProfilePanel";
@@ -85,6 +85,11 @@ export function CampusDashboard() {
   );
   const ranked = React.useMemo(
     () => rankNotices(profile, analyzedNotices, today),
+    [profile, analyzedNotices, today],
+  );
+  // TOP 3: 제외 조건 → 점수 → 정렬 → 상위 3개 (TOP3_산출기준.md)
+  const top3 = React.useMemo(
+    () => getTopNotices(profile, analyzedNotices, today),
     [profile, analyzedNotices, today],
   );
   const summary = React.useMemo(() => {
@@ -382,7 +387,7 @@ export function CampusDashboard() {
       if (view === "home") {
         content = (
           <HomeDashboard
-            top3={ranked.slice(0, 3)}
+            top3={top3}
             savedIds={savedIds}
             onSave={toggleSaved}
             onOpen={(S) => setSelectedNoticeId(S.notice.id)}
@@ -404,6 +409,7 @@ export function CampusDashboard() {
                 topScore={summary.topScore}
               />
               <NoticeList
+                top3={top3}
                 ranked={ranked}
                 savedIds={savedIds}
                 onSave={toggleSaved}

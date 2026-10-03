@@ -55,7 +55,9 @@ export function HomeDashboard({
                 gridColumn: "1 / -1",
               }}
             >
-              {"표시할 공지가 없어요."}
+              {
+                "조건에 맞는 공지가 없어요. 설정에서 관심 분야·키워드를 늘려 보세요."
+              }
             </div>
           )}
         </div>

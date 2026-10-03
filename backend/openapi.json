@@ -11,6 +11,50 @@
     }
   ],
   "paths": {
+    "/api/chatbot": {
+      "post": {
+        "summary": "공지 벡터 TOP-K 검색 후 답변 또는 LLM 문맥 준비",
+        "operationId": "queryChatbot",
+        "description": "기본 TOP-K는 10입니다. prepare도 임베딩 API와 검색용 벡터 색인이 필요합니다. 학사 프로필은 검색하거나 모델에 전달하지 않습니다.",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {
+            "type": "object", "additionalProperties": false, "required": ["prompt"],
+            "properties": {
+              "prompt": { "type": "string", "minLength": 1, "maxLength": 4000 },
+              "topK": { "type": "integer", "minimum": 1, "maximum": 20, "description": "생략하면 서버 설정값 사용 (기본 10)" },
+              "mode": { "type": "string", "enum": ["answer", "prepare"], "default": "answer" }
+            }
+          } } }
+        },
+        "responses": {
+          "200": { "description": "답변 완료, 문맥 준비 또는 검색 결과 없음", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ChatbotResponse" } } } },
+          "400": { "description": "잘못된 JSON" },
+          "403": { "description": "허용되지 않은 Host 또는 Origin" },
+          "413": { "description": "본문 32KB 초과" },
+          "415": { "description": "application/json 필요" },
+          "422": { "description": "질문/옵션 검증 실패" },
+          "502": { "description": "검색 또는 모델 응답 오류" },
+          "503": { "description": "모델 미등록, 검색 색인 미생성/불일치 또는 DB 장애" },
+          "504": { "description": "전체 요청 또는 모델 응답 제한 시간 초과" }
+        }
+      }
+    },
+    "/api/chatbot/status": {
+      "get": {
+        "summary": "챗봇 모델 설정 여부 (DB 연결/색인 준비 완료를 보장하지 않음)",
+        "operationId": "getChatbotStatus",
+        "responses": { "200": { "description": "URL과 키를 제외한 설정 상태", "content": { "application/json": { "schema": {
+          "type": "object", "required": ["embeddingConfigured", "llmConfigured", "defaultTopK", "modes", "indexReadiness"],
+          "properties": {
+            "embeddingConfigured": { "type": "boolean" }, "llmConfigured": { "type": "boolean" },
+            "defaultTopK": { "type": "integer", "minimum": 1, "maximum": 20 },
+            "modes": { "type": "array", "items": { "type": "string", "enum": ["prepare", "answer"] } },
+            "indexReadiness": { "type": "string", "const": "not_checked" }
+          }
+        } } } } }
+      }
+    },
     "/api/db/profiles": {
       "post": {
         "summary": "최초 학사 정보 저장",
@@ -368,6 +412,33 @@
   },
   "components": {
     "schemas": {
+      "ChatbotResponse": {
+        "type": "object", "required": ["status", "answer", "sources", "topK", "retrievedCount", "contextCount"],
+        "properties": {
+          "status": { "type": "string", "enum": ["answered", "prepared", "no_results"] },
+          "answer": { "type": ["string", "null"], "description": "prepared일 때 null" },
+          "topK": { "type": "integer", "minimum": 1, "maximum": 20 },
+          "retrievedCount": { "type": "integer", "minimum": 0, "maximum": 20 },
+          "contextCount": { "type": "integer", "minimum": 0, "maximum": 20 },
+          "sources": { "type": "array", "maxItems": 20, "items": { "$ref": "#/components/schemas/ChatbotSource" } },
+          "messages": { "type": "array", "description": "prepared 응답에만 포함", "items": {
+            "type": "object", "required": ["role", "content"],
+            "properties": { "role": { "type": "string", "enum": ["system", "user"] }, "content": { "type": "string" } }
+          } }
+        }
+      },
+      "ChatbotSource": {
+        "type": "object", "required": ["reference", "id", "noticeId", "rawPointId", "sourceContentHash", "score", "title", "content", "url", "date", "contentStatus", "needsOcr", "needsAttachmentExtraction", "reviewRequired"],
+        "properties": {
+          "reference": { "type": "string", "pattern": "^S[1-9][0-9]*$" },
+          "id": { "type": "string" }, "noticeId": { "type": "string" }, "rawPointId": { "type": "string" },
+          "sourceContentHash": { "type": "string" }, "score": { "type": "number" }, "title": { "type": "string" },
+          "content": { "type": "string", "description": "실제로 모델에 전달한 범위의 공지 텍스트" },
+          "url": { "type": ["string", "null"] }, "date": { "type": ["string", "null"] },
+          "contentStatus": { "type": "string" }, "needsOcr": { "type": "boolean" },
+          "needsAttachmentExtraction": { "type": "boolean" }, "reviewRequired": { "type": "boolean" }
+        }
+      },
       "AcademicProfile": {
         "type": "object",
         "additionalProperties": false,

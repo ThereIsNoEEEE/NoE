@@ -12,9 +12,30 @@ import { QdrantRetriever } from '../CHATBOT/retriever.mjs';
 import { buildMessages } from '../CHATBOT/prompt.mjs';
 import { ChatbotService } from '../CHATBOT/service.mjs';
 import { NoticeIndexer, chunkText } from '../CHATBOT/indexer.mjs';
+import { readRawNoticeBatches } from '../CHATBOT/raw-notices.mjs';
+import { noticePointId } from '../src/db/notices.mjs';
+import { readFile } from 'node:fs/promises';
 
 const settings = () => loadChatbotConfig({ CHATBOT_EMBEDDING_MODEL: 'test-embedding-v1', CHATBOT_LLM_MODEL: 'test-llm' });
-const document = (i = 1) => ({ id: String(i), noticeId: `notice-${i}`, score: 1 - i / 100, title: `테스트 장학 ${i}`, content: '장학금 모집 대상은 원문을 확인하세요.', url: `https://www.kookmin.ac.kr/${i}`, date: '2026-10-03' });
+test('모델 API의 null 응답은 내부 서버 오류가 아닌 명시적 제공자 오류로 반환한다', async () => {
+  const config = { url: 'https://model.example.test', model: 'test', space: 'test' };
+  const fetchNull = async () => new Response('null');
+  await assert.rejects(new HttpEmbeddingProvider(config, 1000, fetchNull).embed('질문'), { status: 502, code: 'EMBEDDING_RESPONSE_INVALID' });
+  await assert.rejects(new HttpLlmProvider(config, 1000, 100, fetchNull).generate([]), { status: 502, code: 'LLM_RESPONSE_INVALID' });
+});
+
+test('OpenAPI에 새 라우트와 응답 계약이 있으며 모든 로컬 참조가 유효하다', async () => {
+  const spec = JSON.parse(await readFile(new URL('../openapi.json', import.meta.url), 'utf8'));
+  assert.equal(spec.paths['/api/chatbot'].post.operationId, 'queryChatbot');
+  assert.equal(spec.paths['/api/chatbot/status'].get.operationId, 'getChatbotStatus');
+  const visit = value => {
+    if (!value || typeof value !== 'object') return;
+    if (value.$ref?.startsWith('#/')) assert.ok(value.$ref.slice(2).split('/').reduce((node, key) => node?.[key], spec), value.$ref);
+    for (const child of Object.values(value)) visit(child);
+  };
+  visit(spec);
+});
+const document = (i = 1) => ({ id: String(i), sourceId: 'test', noticeId: `notice-${i}`, score: 1 - i / 100, title: `테스트 장학 ${i}`, content: '장학금 모집 대상은 원문을 확인하세요.', url: `https://www.kookmin.ac.kr/${i}`, date: '2026-10-03' });
 function serviceFixture(overrides = {}) {
   const calls = [];
   const service = new ChatbotService({ config: settings(),
@@ -156,7 +177,7 @@ test('명시적인 색인 작업은 새 컬렉션을 생성하고 재실행 시 
   calls.length = 0; await indexer.index([{ ...document(), content: '수정 공지' }]);
   assert.equal(calls.find(x => x.method === 'PUT').body.points[0].id, first.id);
   const deletion = calls.find(x => x.path.endsWith('delete?wait=true')).body.filter;
-  assert.equal(deletion.must.find(x => x.key === 'noticeId').match.value, first.payload.noticeId);
+  assert.equal(deletion.must.find(x => x.key === 'rawPointId').match.value, first.payload.rawPointId);
   assert.deepEqual(deletion.must_not, [{ has_id: [first.id] }]);
 });
 
@@ -204,4 +225,54 @@ test('로컬 HTTP 제공자→실제 Qdrant REST 어댑터→LLM 연결을 모�
   assert.equal(result.status, 'answered'); assert.equal(result.retrievedCount, 1);
   assert.equal(seen.find(x => x.path.endsWith('/points/query')).body.limit, 10);
   assert.equal(JSON.parse(seen.find(x => x.path === '/chat').body.messages[1].content).retrievedDocuments[0].reference, 'S1');
+});
+
+test('기존 원문 DB의 envelope와 페이지 커서를 그대로 읽고 원문 ID/미처리 상태를 보존한다', async () => {
+  const calls = [];
+  const rawPointId = noticePointId('cs:123');
+  const client = { collectionPath: c => `/collections/${c}`, request: async (_, __, body) => {
+    calls.push(body);
+    return calls.length === 1 ? { points: [{ id: rawPointId, payload: { kind: 'notice', notice: { ...document(), id: 'cs-123', sourceId: 'cs', externalId: '123', contentStatus: 'image_only' }, needsOcr: true, reviewRequired: true } }], next_page_offset: 'next' } : { points: [], next_page_offset: null };
+  } };
+  const rows = [];
+  for await (const batch of readRawNoticeBatches(client, 'kmu_notices_raw_v1')) rows.push(...batch);
+  assert.equal(rows.length, 1); assert.equal(rows[0].rawPointId, rawPointId); assert.equal(rows[0].needsOcr, true);
+  assert.equal(calls[1].offset, 'next'); assert.equal(calls[0].with_vector, false);
+  assert.ok(!calls[0].with_payload.includes('notice.contentHtml'));
+  const points = []; const seenText = [];
+  const indexer = new NoticeIndexer({ config: settings(), embedder: { isConfigured: () => true, embed: async text => { seenText.push(text); return [1, 0]; } }, client: {
+    collectionPath: () => '/collections/chunks', collection: async () => ({ config: { params: { vectors: { size: 2, distance: 'Cosine' } } } }),
+    request: async (_, __, body) => { if (body.points) points.push(...body.points); return { status: 'completed' }; },
+  } });
+  await indexer.index([{ ...rows[0], images: [{ textStatus: 'not_processed', text: '미확인 OCR' }, { textStatus: 'extracted', text: '확인된 OCR' }, { availability: 'unavailable', textStatus: 'extracted', text: '사용 불가' }] }]);
+  assert.equal(points[0].payload.rawPointId, rawPointId); assert.equal(points[0].payload.noticeId, 'cs-123');
+  assert.equal(points[0].payload.needsOcr, true);
+  assert.ok(seenText.join('').includes('확인된 OCR')); assert.ok(!seenText.join('').includes('미확인 OCR')); assert.ok(!seenText.join('').includes('사용 불가'));
+  const context = buildMessages('질문', [{ ...document(), ...points[0].payload }], 12000);
+  assert.equal(context.sources[0].needsOcr, true); assert.equal(context.sources[0].contentStatus, 'image_only');
+});
+
+test('원문 DB 조회의 반복 커서를 감지하여 무한 색인을 막는다', async () => {
+  const client = { collectionPath: () => '/collections/raw', request: async () => ({ points: [], next_page_offset: 'repeated' }) };
+  await assert.rejects(async () => { for await (const _ of readRawNoticeBatches(client, 'raw')) { /* no-op */ } }, e => e.code === 'RAW_NOTICES_INVALID');
+});
+
+test('LLM 단계에 전체 요청 취소 신호를 전달하고 프런트 제한 전에 504로 종료한다', async t => {
+  const keepAlive = setTimeout(() => {}, 500); t.after(() => clearTimeout(keepAlive));
+  const { service } = serviceFixture({ config: { ...settings(), requestTimeoutMs: 30 }, llm: {
+    isConfigured: () => true,
+    generate: async (_, { signal }) => new Promise((_, reject) => { signal.addEventListener('abort', () => reject(signal.reason), { once: true }); }),
+  } });
+  await assert.rejects(service.query({ prompt: '질문' }), e => e.status === 504 && e.code === 'CHATBOT_TIMEOUT');
+});
+
+test('Docker 패키징·기존 import 명령·프런트 proxy 대기 시간과 챗봇 설정이 호환된다', async () => {
+  const dockerfile = await readFile(new URL('../Dockerfile', import.meta.url), 'utf8');
+  assert.match(dockerfile, /COPY CHATBOT \.\/CHATBOT/);
+  const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+  assert.match(pkg.scripts['import:notices'], /scripts\/import-notices.mjs/);
+  assert.match(pkg.scripts['chatbot:index'], /CHATBOT\/index-notices.mjs/);
+  const proxy = await readFile(new URL('../../front/app/api/[...path]/route.ts', import.meta.url), 'utf8');
+  const proxyTimeout = Number(proxy.match(/AbortSignal\.timeout\((\d+)\)/)?.[1]);
+  assert.ok(settings().requestTimeoutMs < proxyTimeout);
 });
