@@ -160,7 +160,7 @@ const NAVIGATION = [
   },
   {
     view: "settings",
-    label: "설정",
+    label: "나의 정보",
     icon: "settings",
   },
 ];

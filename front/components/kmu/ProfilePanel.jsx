@@ -17,6 +17,7 @@ export function ProfilePanel({
   onSearch: onSearch,
   searching: searching,
   buttonLabel = "내 공지 찾기",
+  wide = false,
 }) {
   const [keywordInput, setKeywordInput] = React.useState("");
   const [keywordError, setKeywordError] = React.useState("");
@@ -35,7 +36,7 @@ export function ProfilePanel({
   return (
     <aside>
       <form
-        className="profile-form"
+        className={`profile-form${wide ? " profile-wide" : ""}`}
         onSubmit={(d) => {
           d.preventDefault();
           onSearch();

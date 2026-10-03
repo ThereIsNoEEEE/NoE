@@ -1,9 +1,7 @@
 "use client";
 
-import * as React from "react";
 import { Fragment } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { HomeNoticeCard } from "./HomeNoticeCard";
 export function HomeDashboard({
   top3: top3,
@@ -12,10 +10,8 @@ export function HomeDashboard({
   onOpen: onOpen,
   tiles: tiles,
   onGo: onGo,
-  onChat: onChat,
   who: who,
 }) {
-  const [question, setQuestion] = React.useState("");
   return (
     <Fragment>
       <section aria-labelledby="homeTitle">
@@ -56,7 +52,7 @@ export function HomeDashboard({
               }}
             >
               {
-                "조건에 맞는 공지가 없어요. 설정에서 관심 분야·키워드를 늘려 보세요."
+                "조건에 맞는 공지가 없어요. 나의 정보에서 관심 분야·키워드를 늘려 보세요."
               }
             </div>
           )}
@@ -79,27 +75,6 @@ export function HomeDashboard({
           </Button>
         ))}
       </section>
-      <form
-        className="chatbar"
-        onSubmit={(p) => {
-          p.preventDefault();
-          onChat(question);
-          setQuestion("");
-        }}
-      >
-        <strong>{"챗봇"}</strong>
-        <Input
-          original={true}
-          className="text-input"
-          value={question}
-          onChange={(p) => setQuestion(p.target.value)}
-          placeholder="Chat-Bot과 함께 계획을 짜봅시다!"
-          aria-label="챗봇에게 질문하기"
-        />
-        <Button variant="original" type="submit" className="btn-sm solid">
-          {"보내기"}
-        </Button>
-      </form>
     </Fragment>
   );
 }

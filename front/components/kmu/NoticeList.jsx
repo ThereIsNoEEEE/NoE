@@ -53,7 +53,7 @@ export function NoticeList({
           {o.length === 0 && (
             <div className="empty-state show">
               {
-                "조건에 맞는 공지가 없어요. 설정에서 관심 분야·키워드를 늘리거나 새로고침해 보세요."
+                "조건에 맞는 공지가 없어요. 나의 정보에서 관심 분야·키워드를 늘리거나 새로고침해 보세요."
               }
             </div>
           )}
