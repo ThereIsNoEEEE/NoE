@@ -78,6 +78,28 @@ export function prepareNotices(document) {
   return { points: values, summary: { inputCount: rows.length, validCount: values.length, duplicates, invalidCount: errors.length, statusCounts, needsOcrCount: values.filter(p => p.payload.needsOcr).length, needsAttachmentExtractionCount: values.filter(p => p.payload.needsAttachmentExtraction).length, unavailableAssetCount: values.reduce((total, p) => total + [...p.payload.notice.images, ...p.payload.notice.attachments].filter(a => a.availability === 'unavailable').length, 0), reviewRequiredCount: values.filter(p => p.payload.reviewRequired).length }, errors };
 }
 
+const LIST_PAGE_SIZE = 256;
+const LIST_MAX_NOTICES = 2000;
+const LIST_MAX_CONTENT = 2000;
+
+// Maps a stored payload to the shape the front dashboard consumes.
+export function toNoticeItem(payload) {
+  const n = payload?.notice;
+  if (!n || typeof n !== 'object' || !n.id || !n.title) return null;
+  return {
+    id: String(n.id),
+    title: String(n.title),
+    content: String(n.content || '').slice(0, LIST_MAX_CONTENT),
+    date: n.dateUnknown ? '' : String(n.date || ''),
+    url: String(n.url || ''),
+    sourceType: n.sourceType || 'website',
+    sourceName: n.sourceName || '',
+    category: n.sourceCategory || n.sourceBoard || '',
+    pinned: Boolean(n.pinned),
+    analysisStatus: payload.analysisStatus || null,
+  };
+}
+
 export class NoticesRepository {
   constructor(client, collection = NOTICES_COLLECTION) {
     if (!/^[a-zA-Z0-9_-]{1,100}$/.test(collection) || /profile/i.test(collection)) throw new Error('프로필 컬렉션과 구분되는 공지 컬렉션 이름이 필요합니다.');
@@ -108,5 +130,22 @@ export class NoticesRepository {
       onProgress(saved, points.length);
     }
     return saved;
+  }
+
+  async list() {
+    const items = [];
+    let offset = null;
+    do {
+      const result = await this.client.request('POST', `${this.client.collectionPath(this.collection)}/points/scroll`, {
+        limit: LIST_PAGE_SIZE, with_payload: true, with_vector: false, ...(offset === null ? {} : { offset }),
+        filter: { must: [{ key: 'kind', match: { value: 'notice' } }] },
+      });
+      for (const point of result?.points || []) {
+        const item = toNoticeItem(point.payload);
+        if (item) items.push(item);
+      }
+      offset = result?.next_page_offset ?? null;
+    } while (offset !== null && items.length < LIST_MAX_NOTICES);
+    return items.sort((a, b) => b.date.localeCompare(a.date));
   }
 }

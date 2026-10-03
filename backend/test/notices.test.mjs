@@ -71,3 +71,26 @@ test('Qdrant protocol: create payload-only collection, upsert with wait=true, re
   await assert.rejects(unauthorized.ensureCollection(), QdrantError);
   assert.throws(() => new NoticesRepository({}, 'kmu_academic_profiles_v1'), /프로필/);
 });
+
+test('toNoticeItem maps stored payload to the front notice shape', async () => {
+  const { toNoticeItem } = await import('../src/db/notices.mjs');
+  const item = toNoticeItem({ kind: 'notice', analysisStatus: 'pending', notice: { id: 'cs-1', title: 'T', content: 'x'.repeat(3000), date: '2026-09-18', dateUnknown: false, url: 'https://cs.kookmin.ac.kr/1', sourceName: '국민대학교 소프트웨어융합대학', sourceType: 'website', sourceBoard: '공지사항', sourceCategory: null, pinned: true } });
+  assert.equal(item.id, 'cs-1');
+  assert.equal(item.content.length, 2000);
+  assert.equal(item.category, '공지사항');
+  assert.equal(item.analysisStatus, 'pending');
+  assert.equal(toNoticeItem({ notice: { id: 'a' } }), null);
+  assert.equal(toNoticeItem({}), null);
+});
+
+test('NoticesRepository.list pages through scroll results and sorts by date desc', async () => {
+  const pages = [
+    { points: [{ payload: { notice: { id: 'a', title: 'A', date: '2026-01-01' } } }], next_page_offset: 'p2' },
+    { points: [{ payload: { notice: { id: 'b', title: 'B', date: '2026-05-01' } } }, { payload: {} }], next_page_offset: null },
+  ];
+  const offsets = [];
+  const client = { collectionPath: n => `/collections/${n}`, request: async (method, path, body) => { offsets.push(body.offset); return pages.shift(); } };
+  const items = await new NoticesRepository(client, 'notices').list();
+  assert.deepEqual(items.map(i => i.id), ['b', 'a']);
+  assert.deepEqual(offsets, [undefined, 'p2']);
+});

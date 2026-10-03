@@ -79,7 +79,7 @@ async function fetchNotices() {
     if (n.length === 0) throw new Error("empty");
     return {
       notices: n,
-      source: t.source || "live",
+      source: t.source || "qdrant",
       fetchedAt: t.fetchedAt,
     };
   } catch (e) {
