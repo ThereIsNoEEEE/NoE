@@ -1,3 +1,5 @@
+import { UNDERGRAD_SCHOOLS } from "@/data/noticeSources";
+
 const iconPaths = {
   home: "M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z",
   radar:
@@ -21,7 +23,6 @@ const DEFAULT_INTERESTS = [
   "공모전",
   "AI/데이터",
   "특강",
-  "대학원",
   "수강신청",
   "교환학생",
   "교내행사",
@@ -34,47 +35,25 @@ const INTEREST_KEYWORDS = {
   공모전: ["공모", "경진", "대회", "챌린지", "아이디어톤", "해커톤"],
   "AI/데이터": ["ai", "인공지능", "데이터", "머신러닝", "딥러닝", "생성형"],
   특강: ["특강", "세미나", "강연", "포럼", "컨퍼런스"],
-  대학원: ["대학원"],
   수강신청: ["수강신청", "수강 신청", "강의평가", "폐강", "정정"],
   교환학생: ["교환학생", "교환 학생", "파견", "해외"],
   교내행사: ["행사", "축제", "캠프", "설명회", "오리엔테이션"],
 };
 
-const STUDENT_TYPES = ["학부", "대학원"];
+const STUDENT_TYPES = ["학부"];
 
 const SCHOOLS = {
-  학부: {
-    창의공과대학: [
-      "소프트웨어학부",
-      "자동차공학과",
-      "전자공학부",
-      "신소재공학부",
-    ],
-    조형대학: [
-      "시각디자인학과",
-      "공업디자인학과",
-      "공간디자인학과",
-      "영상디자인학과",
-    ],
-    사회과학대학: ["행정학과", "정치외교학과", "사회학과", "미디어·광고학부"],
-    경영대학: ["경영학부", "경영정보학부", "재무금융·회계학부"],
-  },
-  대학원: {
-    소프트웨어융합대학원: ["AI", "소프트웨어", "데이터사이언스"],
-    일반대학원: ["컴퓨터공학", "전자공학", "경영학", "디자인"],
-    테크노디자인전문대학원: ["디자인", "공학"],
-  },
+  학부: UNDERGRAD_SCHOOLS,
 };
 
 const GRADES = {
   학부: [1, 2, 3, 4],
-  대학원: [1, 2, 3],
 };
 
 const DEFAULT_PROFILE = {
-  studentType: "대학원",
-  college: "소프트웨어융합대학원",
-  major: "AI",
+  studentType: "학부",
+  college: "소프트웨어융합대학",
+  major: "소프트웨어학부",
   grade: 1,
   interests: ["취업", "인턴", "AI/데이터", "공모전"],
   customInterests: [],
@@ -83,12 +62,12 @@ const DEFAULT_PROFILE = {
 
 const DEMO_PROFILES = {
   A: {
-    label: "사용자 A · AI 대학원생",
+    label: "사용자 A · AI/SW 학부생",
     profile: {
-      studentType: "대학원",
-      college: "소프트웨어융합대학원",
-      major: "AI",
-      grade: 1,
+      studentType: "학부",
+      college: "소프트웨어융합대학",
+      major: "인공지능학부",
+      grade: 3,
       interests: ["AI/데이터", "취업", "인턴", "공모전"],
       keywords: ["AI", "데이터", "해커톤"],
     },
@@ -97,8 +76,8 @@ const DEMO_PROFILES = {
     label: "사용자 B · 학부생",
     profile: {
       studentType: "학부",
-      college: "창의공과대학",
-      major: "소프트웨어학부",
+      college: "경영대학",
+      major: "경영학부",
       grade: 2,
       interests: ["장학금", "교환학생"],
       keywords: ["장학", "교환"],

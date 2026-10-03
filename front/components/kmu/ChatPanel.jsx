@@ -1,8 +1,11 @@
 "use client";
 
 import * as React from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NoticeImage } from "./NoticeImage";
 
 const CHAT_ERRORS = {
   CHATBOT_INPUT_INVALID: "질문을 다시 입력해 주세요.",
@@ -15,8 +18,58 @@ const CHAT_ERRORS = {
   CHATBOT_TIMEOUT: "챗봇 응답이 늦어지고 있어요. 다시 시도해 주세요.",
 };
 
-// Home chatbot backed by the backend RAG endpoint (POST /api/chatbot).
-export function ChatPanel() {
+const PROFILE_FIELDS = ["studentType", "college", "major", "grade", "interests", "customInterests", "keywords"];
+const MAX_SOURCE_CARDS = 4;
+
+// Turns [S1] citations into links to the cited notice.
+function linkCitations(answer, sources) {
+  const urls = Object.fromEntries(sources.filter((s) => s.url).map((s) => [s.reference, s.url]));
+  // Handles both [S1] and grouped [S1, S2] citations.
+  return answer.replace(/\[(S\d+(?:\s*,\s*S\d+)*)\](?!\()/g, (match, group) =>
+    group
+      .split(/\s*,\s*/)
+      .map((ref) => (urls[ref] ? `[[${ref}]](${urls[ref]})` : `[${ref}]`))
+      .join(" "),
+  );
+}
+
+// Notices cited in the answer first (in citation order), else the top results; one card per notice.
+function pickSourceCards(answer, sources) {
+  const cited = [...answer.matchAll(/\[(S\d+(?:\s*,\s*S\d+)*)\]/g)].flatMap((m) => m[1].split(/\s*,\s*/));
+  const byRef = Object.fromEntries(sources.map((s) => [s.reference, s]));
+  const ordered = cited.length ? cited.map((ref) => byRef[ref]).filter(Boolean) : sources.slice(0, 3);
+  const seen = new Set();
+  return ordered.filter((s) => s.url && !seen.has(s.noticeId) && seen.add(s.noticeId)).slice(0, MAX_SOURCE_CARDS);
+}
+
+const markdownComponents = {
+  a: ({ href, children }) => (
+    <a href={href} target="_blank" rel="noreferrer">
+      {children}
+    </a>
+  ),
+};
+
+function SourceCards({ sources }) {
+  return (
+    <div className="chat-source-cards">
+      {sources.map((src) => (
+        <a key={src.noticeId} className="chat-source-card" href={src.url} target="_blank" rel="noreferrer">
+          <span className="chat-source-thumb">
+            {src.imageUrl ? <NoticeImage src={src.imageUrl} title={src.title} /> : <span className="chat-source-ref">{src.reference}</span>}
+          </span>
+          <span className="chat-source-text">
+            <strong>{src.title}</strong>
+            <small>{[src.reference, src.date].filter(Boolean).join(" · ")}</small>
+          </span>
+        </a>
+      ))}
+    </div>
+  );
+}
+
+// Chatbot backed by the backend RAG endpoint (POST /api/chatbot); sends "나의 정보" for personalisation.
+export function ChatPanel({ profile }) {
   const [messages, setMessages] = React.useState([]);
   const [question, setQuestion] = React.useState("");
   const [pending, setPending] = React.useState(false);
@@ -35,17 +88,18 @@ export function ChatPanel() {
     setQuestion("");
     setPending(true);
     try {
+      const myInfo = profile ? Object.fromEntries(PROFILE_FIELDS.filter((k) => profile[k] != null).map((k) => [k, profile[k]])) : undefined;
       const res = await fetch("/api/chatbot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: text }),
+        body: JSON.stringify({ prompt: text, ...(myInfo ? { profile: myInfo } : {}) }),
         signal: AbortSignal.timeout(25000),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(CHAT_ERRORS[data?.error?.code] || "챗봇 응답을 받지 못했어요. 잠시 후 다시 시도해 주세요.");
-      const seen = new Set();
-      const sources = (data.sources || []).filter((src) => src.url && !seen.has(src.noticeId) && seen.add(src.noticeId)).slice(0, 5);
-      setMessages((m) => [...m, { role: "assistant", content: data.answer || "관련 공지를 찾지 못했어요.", sources }]);
+      const answer = data.answer || "관련 공지를 찾지 못했어요.";
+      const sources = Array.isArray(data.sources) ? data.sources : [];
+      setMessages((m) => [...m, { role: "assistant", content: linkCitations(answer, sources), sources: pickSourceCards(answer, sources) }]);
     } catch (err) {
       const message = err?.name === "TimeoutError" ? "챗봇 응답이 늦어지고 있어요. 다시 시도해 주세요." : err?.message;
       setMessages((m) => [...m, { role: "assistant", content: message || "챗봇 응답을 받지 못했어요.", error: true }]);
@@ -71,17 +125,17 @@ export function ChatPanel() {
           )}
           {messages.map((m, i) => (
             <div key={i} className={`chat-msg ${m.role}${m.error ? " error" : ""}`}>
-              {m.content}
-              {m.sources?.length > 0 && (
-                <ul className="chat-sources">
-                  {m.sources.map((src) => (
-                    <li key={src.noticeId}>
-                      <a href={src.url} target="_blank" rel="noreferrer">
-                        {`[${src.reference}] ${src.title}`}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
+              {m.role === "assistant" && !m.error ? (
+                <>
+                  <div className="chat-md">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                      {m.content}
+                    </ReactMarkdown>
+                  </div>
+                  {m.sources?.length > 0 && <SourceCards sources={m.sources} />}
+                </>
+              ) : (
+                m.content
               )}
             </div>
           ))}

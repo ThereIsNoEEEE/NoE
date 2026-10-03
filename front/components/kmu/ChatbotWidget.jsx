@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ChatPanel } from "./ChatPanel";
 
-export function ChatbotWidget() {
+export function ChatbotWidget({ profile }) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef(null);
   const dockRef = useRef(null);
@@ -35,7 +35,7 @@ export function ChatbotWidget() {
             </div>
             <Button variant="original" className="chat-close" onClick={close} aria-label="챗봇 닫기" type="button">×</Button>
           </header>
-          <ChatPanel />
+          <ChatPanel profile={profile} />
         </section>
       </div>
       <Button ref={triggerRef} variant="original" className="chat-fab" onClick={() => open ? close() : setOpen(true)} aria-label={open ? "챗봇 닫기" : "챗봇 열기"} aria-expanded={open} aria-controls={panelId} type="button">

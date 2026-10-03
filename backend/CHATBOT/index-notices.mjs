@@ -16,13 +16,13 @@ try {
   const client = new QdrantClient(config.qdrant);
   const indexer = new NoticeIndexer({ client, embedder, config: config.chatbot });
   if (!args.length) {
-    let indexedNotices = 0, indexedChunks = 0;
+    let indexedNotices = 0, skippedNotices = 0, indexedChunks = 0;
     for await (const batch of readRawNoticeBatches(client, config.chatbot.rawCollection)) {
       const result = await indexer.index(batch);
-      indexedNotices += result.indexedNotices; indexedChunks += result.indexedChunks;
-      console.log(JSON.stringify({ indexedNotices, indexedChunks, collection: config.chatbot.collection }));
+      indexedNotices += result.indexedNotices; skippedNotices += result.skippedNotices; indexedChunks += result.indexedChunks;
+      console.log(JSON.stringify({ indexedNotices, skippedNotices, indexedChunks, collection: config.chatbot.collection }));
     }
-    console.log(JSON.stringify({ complete: true, indexedNotices, indexedChunks }));
+    console.log(JSON.stringify({ complete: true, indexedNotices, skippedNotices, indexedChunks }));
     process.exitCode = 0;
   } else {
   let notices;

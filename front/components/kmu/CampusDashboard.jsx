@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Fragment } from "react";
 import { Button } from "@/components/ui/button";
-import { SCHOOLS, GRADES, DEMO_PROFILES, NAVIGATION } from "@/data/profile";
+import { DEMO_PROFILES, NAVIGATION } from "@/data/profile";
 import {
   validateInterest,
   PROFILE_STORAGE_KEY,
@@ -26,6 +26,7 @@ import { ThemeToggle } from "./ThemeToggle";
 import { ChatbotWidget } from "./ChatbotWidget";
 import { CollectedNotices } from "./CollectedNotices";
 import { ProfileDialog } from "./ProfileDialog";
+import { NoticeSources } from "./NoticeSources";
 export function CampusDashboard() {
   React.useEffect(() => {
     const applyTheme = (theme) => {
@@ -160,15 +161,6 @@ export function CampusDashboard() {
       ...D,
       ...S,
     }));
-  const changeStudentType = (S) => {
-    const D = Object.keys(SCHOOLS[S])[0];
-    updateProfile({
-      studentType: S,
-      college: D,
-      major: SCHOOLS[S][D][0],
-      grade: GRADES[S][0],
-    });
-  };
   const toggleInterest = (S) =>
     setProfile((D) => ({
       ...D,
@@ -240,7 +232,7 @@ export function CampusDashboard() {
     );
   };
   const dateLabel = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, "0")}.${String(today.getDate()).padStart(2, "0")}`;
-  const profileLabel = `${profile.studentType === "대학원" ? "대학원생" : "학부생"} · ${profile.major} ${profile.grade}학년`;
+  const profileLabel = `학부생 · ${profile.major} ${profile.grade}학년`;
   const counts = {
     notice: ranked.length,
     benefit: eligibleNotices.length,
@@ -318,7 +310,6 @@ export function CampusDashboard() {
       wide={wide}
       profile={profile}
       onChange={updateProfile}
-      onStudentType={changeStudentType}
       onToggleInterest={toggleInterest}
       onAddCustom={addInterest}
       onRemoveCustom={removeInterest}
@@ -352,6 +343,7 @@ export function CampusDashboard() {
           </div>
         </div>
         {renderProfile("저장하고 추천 보기", true)}
+        <NoticeSources college={profile.college} />
         <CollectedNotices />
       </section>
     );
@@ -472,7 +464,7 @@ export function CampusDashboard() {
             aria-label="나의 정보 열기"
           >
             <div className="avatar">
-              {profile.studentType === "대학원" ? "대" : "학"}
+              {"학"}
             </div>
             <div>
               <strong>{"내 프로필"}</strong>
@@ -536,7 +528,7 @@ export function CampusDashboard() {
         {renderProfile("저장하고 맞춤 공지 보기")}
         {toast && <p className="dialog-feedback" role="status">{toast}</p>}
       </ProfileDialog>
-      <ChatbotWidget />
+      <ChatbotWidget profile={profile} />
       <NoticeDetail
         item={selectedNotice}
         saved={

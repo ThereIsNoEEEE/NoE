@@ -80,7 +80,7 @@ test('미등록 모델을 실제 답변처럼 가장하지 않고 비용 발생 
 
 test('질문/상위 개수/임의 collection/filter/provider 입력을 검증한다', () => {
   for (const input of [null, [], {}, { prompt: ' ' }, { prompt: 'x'.repeat(4001) }, { prompt: 'a', topK: '10' }, { prompt: 'a', topK: 0 }, { prompt: 'a', topK: 21 }, { prompt: 'a', mode: 'mock' }, { prompt: 'a', collection: 'profiles' }, { prompt: 'a', filter: {} }, { prompt: 'a', llmUrl: 'http://evil' }]) assert.throws(() => validateChatRequest(input), e => e.status === 422);
-  assert.deepEqual(validateChatRequest({ prompt: ' AI ', topK: 1 }), { prompt: 'AI', topK: 1, mode: 'answer' });
+  assert.deepEqual(validateChatRequest({ prompt: ' AI ', topK: 1 }), { prompt: 'AI', topK: 1, mode: 'answer', profile: null });
 });
 
 test('잘못된 임베딩, 0 벡터, 차원 제한을 거부한다', () => {
@@ -168,7 +168,7 @@ test('설정에 키/URL을 노출하지 않고 개인 학사 컬렉션과 위험
 test('명시적인 색인 작업은 새 컬렉션을 생성하고 재실행 시 같은 청크 ID를 사용한다', async () => {
   const calls = []; let exists = false;
   const config = settings();
-  const client = { collectionPath: () => '/collections/notices', collection: async () => { if (!exists) throw new QdrantError(404); return { config: { params: { vectors: { size: 2, distance: 'Cosine' } } } }; }, request: async (method, path, body) => { calls.push({ method, path, body }); if (path === '/collections/notices') { exists = true; return true; } return { status: 'completed' }; } };
+  const client = { point: async () => { throw new QdrantError(404); }, collectionPath: () => '/collections/notices', collection: async () => { if (!exists) throw new QdrantError(404); return { config: { params: { vectors: { size: 2, distance: 'Cosine' } } } }; }, request: async (method, path, body) => { calls.push({ method, path, body }); if (path === '/collections/notices') { exists = true; return true; } return { status: 'completed' }; } };
   const indexer = new NoticeIndexer({ client, config, embedder: { isConfigured: () => true, embed: async () => [1, 0] } });
   const result = await indexer.index([document()]);
   assert.equal(result.indexedNotices, 1); assert.equal(result.indexedChunks, 1);
@@ -184,7 +184,7 @@ test('명시적인 색인 작업은 새 컬렉션을 생성하고 재실행 시 
 test('색인 입력 검증, 청크 겹침, 기존 다른 벡터 컬렉션 보호', async () => {
   assert.deepEqual(chunkText('abcdefghij', 5, 1), ['abcde', 'efghi', 'ij']);
   assert.throws(() => chunkText('a', 1, 1));
-  const indexer = new NoticeIndexer({ client: { collection: async () => ({ config: { params: { vectors: {} } } }) }, config: settings(), embedder: { isConfigured: () => true, embed: async () => [1, 0] } });
+  const indexer = new NoticeIndexer({ client: { point: async () => { throw new QdrantError(404); }, collection: async () => ({ config: { params: { vectors: {} } } }) }, config: settings(), embedder: { isConfigured: () => true, embed: async () => [1, 0] } });
   await assert.rejects(indexer.index([{ title: 'a', content: 'b', url: 'javascript:evil' }]), e => e.code === 'INDEX_INPUT_INVALID');
   await assert.rejects(indexer.index([document()]), e => e.code === 'CHATBOT_VECTOR_MISMATCH');
 });
@@ -246,6 +246,7 @@ test('기존 원문 DB의 envelope와 페이지 커서를 그대로 읽고 원�
   assert.ok(!calls[0].with_payload.includes('notice.contentHtml'));
   const points = []; const seenText = [];
   const indexer = new NoticeIndexer({ config: settings(), embedder: { isConfigured: () => true, embed: async text => { seenText.push(text); return [1, 0]; } }, client: {
+    point: async () => { throw new QdrantError(404); },
     collectionPath: () => '/collections/chunks', collection: async () => ({ config: { params: { vectors: { size: 2, distance: 'Cosine' } } } }),
     request: async (_, __, body) => { if (body.points) points.push(...body.points); return { status: 'completed' }; },
   } });
@@ -307,4 +308,48 @@ test('LLM 문맥에 한국 시간 기준 오늘 날짜를 포함한다', () => {
   const { messages } = buildMessages('이번 주 마감 공지', [], 12000, new Date('2026-10-03T16:00:00Z'));
   assert.equal(JSON.parse(messages[1].content).today, '2026-10-04 (일)');
   assert.match(messages[0].content, /today/);
+});
+
+test('재색인 시 내용·모델·청크 수가 같은 공지는 임베딩하지 않고 건너뛴다', async () => {
+  const stored = new Map(); let embeds = 0;
+  const client = {
+    point: async (_, id) => { if (!stored.has(id)) throw new QdrantError(404); return { id, payload: stored.get(id) }; },
+    collectionPath: () => '/collections/notices',
+    collection: async () => ({ config: { params: { vectors: { size: 2, distance: 'Cosine' } } } }),
+    request: async (method, path, body) => { for (const p of body?.points || []) stored.set(p.id, p.payload); return { status: 'completed' }; },
+  };
+  const indexer = new NoticeIndexer({ client, config: settings(), embedder: { isConfigured: () => true, embed: async () => { embeds++; return [1, 0]; } } });
+  assert.equal((await indexer.index([document()])).indexedNotices, 1);
+  const first = embeds;
+  const again = await indexer.index([document()]);
+  assert.deepEqual([again.indexedNotices, again.skippedNotices, embeds], [0, 1, first]);
+  const changed = await indexer.index([{ ...document(), content: '내용이 바뀐 공지', contentHash: undefined }]);
+  assert.equal(changed.indexedNotices, 1); assert.ok(embeds > first);
+});
+
+test('답변 출처에 원문 공지 이미지 URL을 붙이고 조회 실패는 무시한다', async () => {
+  const raw = 'aaaaaaaa-aaaa-5aaa-8aaa-aaaaaaaaaaaa';
+  const calls = [];
+  const client = { collectionPath: n => `/collections/${n}`, request: async (method, path, body) => { calls.push({ path, body }); return [{ id: raw, payload: { notice: { images: [{ url: 'https://cs.kookmin.ac.kr/poster.png' }] } } }, { id: 'bbbbbbbb-bbbb-5bbb-8bbb-bbbbbbbbbbbb', payload: { notice: { images: [] } } }]; } };
+  const retriever = new QdrantRetriever(client, settings());
+  assert.deepEqual(await retriever.imageUrls([raw, raw, 'bbbbbbbb-bbbb-5bbb-8bbb-bbbbbbbbbbbb', 'not-a-uuid']), { [raw]: `/api/db/notices/${raw}/image` });
+  assert.equal(calls[0].path, `/collections/${settings().rawCollection}/points`);
+  assert.equal(calls[0].body.ids.length, 2);
+  const failing = new QdrantRetriever({ collectionPath: n => n, request: async () => { throw new QdrantError(500); } }, settings());
+  assert.deepEqual(await failing.imageUrls([raw]), {});
+});
+
+test('나의 정보(profile)를 검증해 검색 질의와 LLM 문맥에 반영하고, 불완전하면 무시한다', async () => {
+  const profile = { studentType: '대학원', college: '소프트웨어융합대학원', major: 'AI', grade: 1, interests: ['취업'], customInterests: [], keywords: ['해커톤'], extra: 'x' };
+  const parsed = validateChatRequest({ prompt: '추천해줘', profile });
+  assert.deepEqual(parsed.profile, { studentType: '대학원', college: '소프트웨어융합대학원', major: 'AI', grade: 1, interests: ['취업'], customInterests: [], keywords: ['해커톤'] });
+  assert.equal(validateChatRequest({ prompt: 'q', profile: { major: 'AI' } }).profile, null);
+  assert.equal(validateChatRequest({ prompt: 'q', profile: 'bad' }).profile, null);
+  const { messages } = buildMessages('추천해줘', [], 12000, new Date(), parsed.profile);
+  assert.equal(JSON.parse(messages[1].content).userProfile.major, 'AI');
+  assert.equal(JSON.parse(buildMessages('q', [], 12000).messages[1].content).userProfile, undefined);
+  const embedded = [];
+  const service = new ChatbotService({ config: settings(), embedder: { isConfigured: () => true, embed: async text => { embedded.push(text); return [1, 0]; } }, retriever: { search: async () => [] }, llm: { isConfigured: () => true } });
+  await service.query({ prompt: '추천해줘', profile });
+  assert.match(embedded[0], /^추천해줘\n\(관심: AI, 취업, 해커톤\)$/);
 });

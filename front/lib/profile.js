@@ -81,14 +81,22 @@ function loadProfile() {
     ...DEFAULT_PROFILE,
     ...readStorage(PROFILE_STORAGE_KEY, {}),
   };
-  return (t = SCHOOLS[e.studentType]) != null && t[e.college]
+  return (t = SCHOOLS[e.studentType]) != null &&
+    t[e.college] &&
+    t[e.college].includes(e.major)
     ? !Array.isArray(e.interests) ||
       !Array.isArray(e.customInterests) ||
       !Array.isArray(e.keywords)
       ? {
           ...DEFAULT_PROFILE,
         }
-      : e
+      : {
+          ...e,
+          // 더 이상 없는 기본 관심 분야(예: 대학원)는 저장값에서 제거
+          interests: e.interests.filter(
+            (i) => DEFAULT_INTERESTS.includes(i) || e.customInterests.includes(i),
+          ),
+        }
     : {
         ...DEFAULT_PROFILE,
       };

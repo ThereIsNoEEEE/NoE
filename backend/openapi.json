@@ -23,7 +23,8 @@
             "properties": {
               "prompt": { "type": "string", "minLength": 1, "maxLength": 4000 },
               "topK": { "type": "integer", "minimum": 1, "maximum": 20, "description": "생략하면 서버 설정값 사용 (기본 10)" },
-              "mode": { "type": "string", "enum": ["answer", "prepare"], "default": "answer" }
+              "mode": { "type": "string", "enum": ["answer", "prepare"], "default": "answer" },
+              "profile": { "type": "object", "description": "선택. 나의 정보(studentType, college, major, grade, interests, customInterests, keywords). 검색 질의와 LLM 문맥에 반영하며, 형식이 맞지 않으면 무시합니다." }
             }
           } } }
         },
@@ -492,7 +493,8 @@
           "content": { "type": "string", "description": "실제로 모델에 전달한 범위의 공지 텍스트" },
           "url": { "type": ["string", "null"] }, "date": { "type": ["string", "null"] },
           "contentStatus": { "type": "string" }, "needsOcr": { "type": "boolean" },
-          "needsAttachmentExtraction": { "type": "boolean" }, "reviewRequired": { "type": "boolean" }
+          "needsAttachmentExtraction": { "type": "boolean" }, "reviewRequired": { "type": "boolean" },
+          "imageUrl": { "type": ["string", "null"], "description": "answer 모드의 원문 공지 대표 이미지 경로(GET /api/db/notices/{id}/image). 표시용이며 LLM에는 전달하지 않습니다." }
         }
       },
       "AcademicProfile": {
