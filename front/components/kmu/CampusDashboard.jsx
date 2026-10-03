@@ -25,13 +25,33 @@ import { NoticeFeed } from "./NoticeFeed";
 import { ThemeToggle } from "./ThemeToggle";
 import { ChatbotWidget } from "./ChatbotWidget";
 import { CollectedNotices } from "./CollectedNotices";
+import { ProfileDialog } from "./ProfileDialog";
 import { NoticeSources } from "./NoticeSources";
 export function CampusDashboard() {
+  React.useEffect(() => {
+    const applyTheme = (theme) => {
+      if (theme !== "dark" && theme !== "light") return;
+      document.documentElement.dataset.theme = theme;
+      try { localStorage.setItem("kmu-pick-theme", theme); } catch {}
+    };
+    applyTheme(new URLSearchParams(window.location.search).get("theme"));
+    const receiveTheme = (event) => {
+      if (!["http://localhost:3200", "http://127.0.0.1:3200"].includes(event.origin)) return;
+      if (event.data?.type === "kmu-compare-theme") applyTheme(event.data.theme);
+    };
+    window.addEventListener("message", receiveTheme);
+    return () => window.removeEventListener("message", receiveTheme);
+  }, []);
   const today = React.useMemo(() => new Date(), []);
   const [profile, setProfile] = React.useState(loadProfile);
   const [onboarded, setOnboarded] = React.useState(
     () => readStorage(ONBOARDED_STORAGE_KEY, !1) === !0,
   );
+  const [profileDialogOpen, setProfileDialogOpen] = React.useState(() => {
+    const preview = new URLSearchParams(window.location.search).get("preview");
+    if (preview === "home") return false;
+    return preview === "onboarding" || !readStorage(ONBOARDED_STORAGE_KEY, false);
+  });
   const [view, setView] = React.useState("home");
   const [savedIds, setSavedIds] = React.useState(() =>
     readStorage(SAVED_STORAGE_KEY, []),
@@ -199,6 +219,7 @@ export function CampusDashboard() {
       writeStorage(ONBOARDED_STORAGE_KEY, !0);
       showToast("프로필을 저장했어요. 맞춤 공지를 골라드릴게요!");
     }
+    setProfileDialogOpen(false);
     navigate("home");
   };
   const handleRefresh = async () => {
@@ -298,54 +319,6 @@ export function CampusDashboard() {
       buttonLabel={S}
     />
   );
-  if (!onboarded)
-    return (
-      <div className="onboard">
-        <div className="onboard-theme">
-          <ThemeToggle />
-        </div>
-        <div className="onboard-inner">
-          <div
-            className="brand"
-            style={{
-              padding: 0,
-            }}
-          >
-            <span className="brand-mark">{"K"}</span>
-            <span>
-              {"KMU Pick AI"}
-              <small>{"PERSONAL NOTICE RADAR"}</small>
-            </span>
-          </div>
-          <div
-            className="eyebrow"
-            style={{
-              marginTop: 26,
-            }}
-          >
-            {"WELCOME"}
-          </div>
-          <h1 className="onboard-title">
-            {"먼저 내 학사 정보를"}
-            <br />
-            <span>{"알려주세요."}</span>
-          </h1>
-          <p className="onboard-copy">
-            {
-              "학적·소속·관심 분야를 바탕으로 국민대 공지 중 나에게 필요한 것만 골라드려요. 나중에 나의 정보에서 언제든 바꿀 수 있어요."
-            }
-          </p>
-          {renderProfile("시작하기")}
-        </div>
-        <div
-          className={`toast${toast ? " show" : ""}`}
-          role="status"
-          aria-live="polite"
-        >
-          {toast}
-        </div>
-      </div>
-    );
   const loadingCards = (
     <div
       className="home-grid grid grid-cols-1 gap-4 min-[1121px]:grid-cols-3"
@@ -551,6 +524,10 @@ export function CampusDashboard() {
           </footer>
         </div>
       </main>
+      <ProfileDialog open={profileDialogOpen} onClose={() => setProfileDialogOpen(false)}>
+        {renderProfile("저장하고 맞춤 공지 보기")}
+        {toast && <p className="dialog-feedback" role="status">{toast}</p>}
+      </ProfileDialog>
       <ChatbotWidget profile={profile} />
       <NoticeDetail
         item={selectedNotice}
