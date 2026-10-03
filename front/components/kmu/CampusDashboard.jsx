@@ -22,6 +22,7 @@ import { NoticeList } from "./NoticeList";
 import { NoticeDetail } from "./NoticeDetail";
 import { HomeDashboard } from "./HomeDashboard";
 import { NoticeFeed } from "./NoticeFeed";
+import { CollectedNotices } from "./CollectedNotices";
 export function CampusDashboard() {
   const today = React.useMemo(() => new Date(), []);
   const [profile, setProfile] = React.useState(loadProfile);
@@ -210,8 +211,8 @@ export function CampusDashboard() {
     setLoading(true);
     const S = await refreshNotices();
     showToast(
-      S === "live"
-        ? "국민대 홈페이지에서 최신 공지를 다시 가져왔어요."
+      S === "qdrant"
+        ? "수집된 국민대 공지를 다시 불러왔어요."
         : "수집에 실패해 샘플 데이터를 사용 중이에요.",
     );
   };
@@ -255,10 +256,10 @@ export function CampusDashboard() {
   ];
   const statusIndicators = (
     <div className="status-row" aria-live="polite">
-      {dataStatus.kind === "live" && (
+      {dataStatus.kind === "qdrant" && (
         <span className="status-pill">
           <i />
-          {"국민대 공식 홈페이지 공지 "}
+          {"국민대 홈페이지 수집 공지 "}
           {summary.total}
           {"건 수집"}
         </span>
@@ -378,6 +379,7 @@ export function CampusDashboard() {
         >
           {renderProfile("저장하고 추천 보기")}
         </div>
+        <CollectedNotices />
       </section>
     );
   } else {
@@ -523,8 +525,8 @@ export function CampusDashboard() {
             <span className="live-dot" />
             {dateLabel}
             {" · "}
-            {dataStatus.kind === "live"
-              ? "국민대 공식 홈페이지 실시간 수집"
+            {dataStatus.kind === "qdrant"
+              ? "국민대 홈페이지 수집 공지 (Qdrant)"
               : dataStatus.kind === "sample"
                 ? "Local Sample Data (수집 실패 대체)"
                 : "공지 수집 중…"}

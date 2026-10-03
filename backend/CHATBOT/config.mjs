@@ -18,7 +18,8 @@ export function loadChatbotConfig(env = process.env) {
   if (threshold !== undefined && (!Number.isFinite(threshold) || threshold < -1 || threshold > 1)) throw new Error('CHATBOT_SCORE_THRESHOLD는 -1~1 범위입니다.');
   const embeddingModel = env.CHATBOT_EMBEDDING_MODEL || '';
   const embeddingSpace = env.CHATBOT_EMBEDDING_SPACE || embeddingModel;
-  const rawCollection = env.CHATBOT_RAW_COLLECTION || 'kmu_notices_raw_v1';
+  const rawCollection = env.CHATBOT_RAW_COLLECTION || env.QDRANT_NOTICES_COLLECTION || 'kmu_notices_raw_v1';
+  if (collection === (env.QDRANT_NOTICES_COLLECTION || 'kmu_notices_raw_v1')) throw new Error('CHATBOT_COLLECTION은 기존 공지 컬렉션과 분리해야 합니다.');
   if (!/^[a-zA-Z0-9_-]{1,100}$/.test(rawCollection) || [collection, env.QDRANT_COLLECTION || 'kmu_academic_profiles_v1'].includes(rawCollection)) throw new Error('공지 원문, 검색 벡터, 학사 정보 컬렉션은 서로 달라야 합니다.');
   return {
     collection, rawCollection, vectorName: env.CHATBOT_VECTOR_NAME || '',

@@ -58,7 +58,7 @@ export class NoticeIndexer {
       const content = [notice.content, ...extracted].join('\n').trim();
       if (content.length > 100000) throw new ApiError(422, 'INDEX_INPUT_INVALID', '100,000자를 초과한 공지는 별도로 분할해 주세요. 원문은 수정하지 않았습니다.');
       return { noticeId: notice.id, rawPointId, sourceContentHash: notice.contentHash || createHash('sha256').update(content).digest('hex'),
-        title: notice.title.trim().slice(0, 300), content, url, date: typeof notice.date === 'string' ? notice.date.slice(0, 30) : null,
+        title: notice.title.trim().slice(0, 300), content, url, date: !notice.dateUnknown && typeof notice.date === 'string' ? notice.date.slice(0, 30) : null,
         contentStatus: notice.contentStatus || (notice.content.trim() ? 'text_extracted' : 'extraction_unknown'),
         needsOcr: notice.needsOcr ?? (Array.isArray(notice.images) && notice.images.some(a => a && a.availability !== 'unavailable' && a.textStatus !== 'extracted')),
         needsAttachmentExtraction: notice.needsAttachmentExtraction ?? (Array.isArray(notice.attachments) && notice.attachments.some(a => a && a.availability !== 'unavailable' && a.textStatus !== 'extracted')),

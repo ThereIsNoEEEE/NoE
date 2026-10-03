@@ -1958,7 +1958,8 @@
     font-size: 1.12rem;
     line-height: 1.38;
     letter-spacing: -0.03em;
-    min-height: 3.1em;
+    /* exactly two lines so a clamped third line never peeks through */
+    height: 2.76em;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
@@ -2151,5 +2152,91 @@
       flex-basis: 100%;
       order: 3;
     }
+  }
+  .collected {
+    margin-top: 34px;
+  }
+  .collected-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 12px 0;
+  }
+  .collected-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .collected-toolbar input,
+  .collected-toolbar select {
+    min-height: 36px;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+    font-size: 0.82rem;
+  }
+  .collected-toolbar input {
+    flex: 1 1 220px;
+  }
+  .collected-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+  .collected-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+  }
+  .collected-table th,
+  .collected-table td {
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--line-soft);
+    text-align: left;
+    vertical-align: top;
+    white-space: nowrap;
+  }
+  .collected-table th {
+    position: sticky;
+    top: 0;
+    background: var(--surface-2);
+    color: var(--muted);
+    font-weight: 600;
+  }
+  .collected-table td.title {
+    white-space: normal;
+    min-width: 260px;
+  }
+  .collected-table td.title a {
+    color: var(--text);
+    text-decoration: none;
+  }
+  .collected-table td.title a:hover {
+    color: var(--accent);
+    text-decoration: underline;
+  }
+  .collected-table .muted {
+    color: var(--muted);
+  }
+  .collected-table .tag {
+    display: inline-block;
+    padding: 1px 7px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--muted);
+    font-size: 0.7rem;
+  }
+  .collected-table .tag.warn {
+    color: #e9c5b8;
+    border-color: #4a352c;
+  }
+  .collected-more {
+    display: flex;
+    justify-content: center;
+    margin-top: 12px;
   }
 }

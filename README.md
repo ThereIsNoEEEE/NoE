@@ -1,5 +1,11 @@
 # NoE
 
+## 메인 화면
+
+![메인 화면 (데스크톱)](docs/screenshots/main-desktop.png)
+
+<img src="docs/screenshots/main-mobile.png" alt="메인 화면 (모바일)" width="320">
+
 ## 접속 정보
 
 | 서비스 | 주소 | 비고 |

@@ -9,6 +9,7 @@
 - `kmu_academic_profiles_v1`: 개인 학사 정보. 챗봇 검색/LLM 전송 대상이 아닙니다.
 - `kmu_notices_raw_v1`: 기존 importer가 저장한 원문. **조회만** 합니다. 원문/이미지/첨부를 덮어쓰지 않습니다.
 - `kmu_notice_chunks_v1`: 별도의 공지 검색 벡터 컬렉션. 기존 `noticePointId()` 및 원문 point ID와 연결합니다.
+- 원문 컬렉션은 `CHATBOT_RAW_COLLECTION`을 지정하지 않으면 기존 `QDRANT_NOTICES_COLLECTION` 설정을 따릅니다. 둘 다 비우면 `kmu_notices_raw_v1`입니다. 날짜 미상(`dateUnknown`) 공지의 임시 날짜는 검색 출처에 포함하지 않습니다.
 - 새 라우트는 기존 Next.js `/api/[...path]` proxy와 호환됩니다. 프런트 챗봇 입력 핸들러의 호출 연결은 별도입니다.
 
 ## API

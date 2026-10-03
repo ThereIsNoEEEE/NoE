@@ -2,7 +2,7 @@
 import { ApiError, json, readJson } from '../http.mjs';
 import { QdrantError } from './qdrant.mjs';
 
-export async function handleDbRoutes(request, response, url, repository) {
+export async function handleDbRoutes(request, response, url, repository, notices) {
   if (!url.pathname.startsWith('/api/db/')) return false;
   try {
     if (url.pathname === '/api/db/health') {
@@ -12,6 +12,11 @@ export async function handleDbRoutes(request, response, url, repository) {
       try { await repository.client.collection(repository.collection); }
       catch (error) { if (error instanceof QdrantError && error.status === 404) collectionExists = false; else throw error; }
       json(response, 200, { ok: true, database: 'qdrant', collectionExists });
+    } else if (url.pathname === '/api/db/notices') {
+      if (request.method !== 'GET') throw new ApiError(405, 'METHOD_NOT_ALLOWED', 'GET만 허용합니다.');
+      if (!notices) throw new ApiError(404, 'NOT_FOUND', 'DB API를 찾을 수 없습니다.');
+      const items = await notices.list();
+      json(response, 200, { items, total: items.length, source: 'qdrant', collection: notices.collection, fetchedAt: new Date().toISOString() });
     } else if (url.pathname === '/api/db/profiles') {
       if (request.method !== 'POST') throw new ApiError(405, 'METHOD_NOT_ALLOWED', '최초 저장은 POST를 사용하세요.');
       const result = await repository.create(await readJson(request));

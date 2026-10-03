@@ -10,7 +10,7 @@ export async function* readRawNoticeBatches(client, collection) {
     try {
       result = await client.request('POST', `${client.collectionPath(collection)}/points/scroll`, {
         limit: 50, with_vector: false,
-        with_payload: ['kind', 'notice.id', 'notice.externalId', 'notice.sourceId', 'notice.title', 'notice.content', 'notice.contentHash', 'notice.contentStatus', 'notice.date', 'notice.url', 'notice.images', 'notice.attachments', 'needsOcr', 'needsAttachmentExtraction', 'reviewRequired'],
+        with_payload: ['kind', 'notice.id', 'notice.externalId', 'notice.sourceId', 'notice.title', 'notice.content', 'notice.contentHash', 'notice.contentStatus', 'notice.date', 'notice.dateUnknown', 'notice.url', 'notice.images', 'notice.attachments', 'needsOcr', 'needsAttachmentExtraction', 'reviewRequired'],
         filter: { must: [{ key: 'kind', match: { value: 'notice' } }] },
         ...(offset === undefined ? {} : { offset }),
       });

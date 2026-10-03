@@ -190,9 +190,14 @@ test('색인 입력 검증, 청크 겹침, 기존 다른 벡터 컬렉션 보호
 });
 
 test('실제 HTTP 라우트에서 기본 상태/503/입력 검증/prepare 응답을 검증한다', async t => {
-  const app = createServer({ config: loadConfig({}) }); app.listen(0, '127.0.0.1'); await once(app, 'listening');
+  const app = createServer({ config: loadConfig({}), notices: { collection: 'existing-notices', list: async () => [document()] } }); app.listen(0, '127.0.0.1'); await once(app, 'listening');
   t.after(() => { app.closeAllConnections(); app.close(); });
   const url = `http://127.0.0.1:${app.address().port}`;
+  const notices = await fetch(url + '/api/db/notices');
+  assert.equal(notices.status, 200);
+  const noticeResult = await notices.json();
+  assert.equal(noticeResult.collection, 'existing-notices');
+  assert.equal(noticeResult.items[0].title, document().title);
   assert.equal((await (await fetch(url + '/api/chatbot/status')).json()).embeddingConfigured, false);
   const response = await fetch(url + '/api/chatbot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: '장학금', mode: 'prepare' }) });
   assert.equal(response.status, 503); assert.equal((await response.json()).error.code, 'EMBEDDING_NOT_CONFIGURED');
@@ -271,8 +276,15 @@ test('Docker 패키징·기존 import 명령·프런트 proxy 대기 시간과 �
   assert.match(dockerfile, /COPY CHATBOT \.\/CHATBOT/);
   const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
   assert.match(pkg.scripts['import:notices'], /scripts\/import-notices.mjs/);
+  assert.match(pkg.scripts['update:notices'], /scripts\/update-notices.mjs/);
   assert.match(pkg.scripts['chatbot:index'], /CHATBOT\/index-notices.mjs/);
   const proxy = await readFile(new URL('../../front/app/api/[...path]/route.ts', import.meta.url), 'utf8');
   const proxyTimeout = Number(proxy.match(/AbortSignal\.timeout\((\d+)\)/)?.[1]);
   assert.ok(settings().requestTimeoutMs < proxyTimeout);
+});
+
+test('최신 main의 공지 컬렉션 설정을 공유하고 검색 컬렉션과의 충돌을 방지한다', () => {
+  const config = loadConfig({ QDRANT_NOTICES_COLLECTION: 'custom_raw_notices' });
+  assert.equal(config.chatbot.rawCollection, config.qdrant.noticesCollection);
+  assert.throws(() => loadConfig({ QDRANT_NOTICES_COLLECTION: 'custom_raw_notices', CHATBOT_COLLECTION: 'custom_raw_notices', CHATBOT_RAW_COLLECTION: 'other_raw' }));
 });
