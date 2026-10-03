@@ -391,7 +391,7 @@ export function CampusDashboard() {
               <NoticeFeed
                 eyebrow="BENEFIT CHECK"
                 title="지원 가능한 공지"
-                desc="내 학적\\xB7학년 조건에 맞고 점수가 50점 이상인 공지예요."
+                desc="내 학적·학년 조건에 맞고 점수가 50점 이상인 공지예요."
                 items={eligibleNotices}
                 onOpen={(S) => setSelectedNoticeId(S.notice.id)}
                 empty="지원 가능한 공지가 아직 없어요. 나의 정보에서 관심 분야를 늘려 보세요."
