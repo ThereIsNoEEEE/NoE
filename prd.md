@@ -1,5 +1,5 @@
 # KMU Pick AI PRD (구현 현황 최신화 — Front/Back 반영)
-팀명: NoE | 최초 작성일: 2026-10-03 | 최신화: 2026-10-03 (챗봇 Markdown·my-info·공지 소스 17개 반영)
+팀명: NoE | 최초 작성일: 2026-10-03 | 최신화: 2026-10-03 (챗봇 Markdown·my-info·공지 소스 17개, Taste 디자인+KMU 컬러 반영)
 
 > 이 문서는 팀 저장소(front + backend)의 **실제 구현 상태**에 맞춰 최신화한 PRD다.
 > 각 항목은 **구현 완료 / 보강 중 / 계획**을 구분해 표기한다. 미구현 기능을 완료처럼 쓰지 않는다.
@@ -166,11 +166,34 @@ KMU Pick AI는 국민대학교의 학교·단과대 공지를 실제로 수집�
 
 ## 8. Opportunity Score
 
-> 상태: **구현 완료** (deterministic logic)
+> 상태: **구현 완료** (deterministic logic) · `front/lib/recommendations.js`
 
-- 관심사 일치도 40 / 지원 대상 적합성 30 / 마감 긴급도 20 / 관심 키워드 일치 10 = 100
-- AI가 점수를 직접 결정하지 않음. 동일 입력 → 동일 결과
-- 프로필/관심사 변경 시 즉시 재계산, Top 3 순위 즉시 변경
+총점 100점은 아래 4개 축으로 구성된다. **지원 대상 적합성(30점)은 학생 유형·학년·학과(전공)/단과대 일치**로 세분화되어, 사용자의 `major`(전공)·`college`(단과대)가 점수에 직접 반영된다.
+
+| 축 | 배점 | 세부 산출 |
+|----|------|-----------|
+| 관심사 일치도 | 40 | 매칭 관심사 0개 → 0 / 1개 → 28 / 2개 이상 → 40 |
+| 지원 대상 적합성 | 30 | **학생 유형 10 + 학년 5 + 학과·단과대 15** (아래 세부 참고) |
+| 마감 긴급도 | 20 | D-Day 기반 긴급도 (마감 임박일수록 가산) |
+| 관심 키워드 일치 | 10 | 사용자 키워드가 공지 본문에 매칭되면 가산 |
+
+### 지원 대상 적합성 (30점) 세부
+
+- **학생 유형 (10점)**: 공지 대상(`target`)이 사용자 `studentType`(학부/대학원)과 일치 → 10, 대상 미지정 공지 → 6, 불일치 → 전체 적합성 0점(`targetStatus="no"`)
+- **학년 (5점)**: 공지 대상 학년(`grades`)에 사용자 `grade`가 포함되거나 학년 미지정 → +5
+- **학과(전공)/단과대 일치 (15점)** — `calculateUnitMatch(profile, notice, text)`
+  - 공지 제목·본문에 사용자 **전공(`major`)** 이 언급됨 → **15점** (`match="major"`)
+  - 공지 출처(`sourceName`)가 사용자 **단과대(`college`)** 게시판 → **12점** (`match="college"`)
+  - 단과대·학과 정보가 없는 일반/공통 공지 → **8점** (`match="general"`)
+  - 타 단과대 게시판 또는 타 학과만 언급 → **0점** (`match="other-college"` / `"other"`)
+  - 전공명은 어미(`학과`/`전공`/`학부`)를 제거한 핵심어로도 매칭하고, `KIBS` 출처는 해당 단과대명으로 alias 처리
+
+### 결과 반영
+
+- 점수 산출 결과에 `unitMatch`(매칭 유형)·`sourceUnit`(출처 단과대)이 포함된다.
+- 추천 이유(`buildRecommendationReason`)에 매칭 사실을 명시: 전공 일치 시 "내 전공({major}) 공고", 단과대 일치 시 "내 단과대({college}) 공지"
+- AI가 점수를 직접 결정하지 않음. 동일 입력 → 동일 결과 (deterministic)
+- 프로필(`studentType`·`grade`·`major`·`college`)·관심사 변경 시 즉시 재계산 → Top 3 순위 즉시 변경 (전공/단과대를 바꾸면 추천 공지가 재정렬됨)
 
 ---
 
@@ -188,8 +211,9 @@ KMU Pick AI는 국민대학교의 학교·단과대 공지를 실제로 수집�
 - `TopNoticeCard` / `HomeNoticeCard` — 상위 추천 카드
 - `NoticeDetail` — 공지 상세
 - `DeadlineBadge`(D-Day) / `SourceBadge`(출처) / `Icon`
-- `ChatPanel` / `ChatbotWidget` — AI 공지 탐색 챗봇 UI (Markdown 답변 + 공지 이미지 카드)
+- `ChatPanel` / `ChatbotWidget` — AI 공지 탐색 챗봇 UI (Markdown 답변 + 공지 이미지 카드, modeless 우하단 도크)
 - `NoticeSources` — 공지 소스(17개) 안내/선택
+- `ProfileDialog` — 첫 방문 온보딩 다이얼로그 (2단계: 학적 정보 → 관심사)
 - 데이터: `front/data/notices.js`, `front/data/profile.js`, `front/data/noticeSources.js` / 로직: `front/lib/recommendations.js`, `front/lib/dates.js`, `front/lib/profile.js`
 
 > 참고: AI 공지 탐색 챗봇은 통합 프론트(`ChatPanel`/`ChatbotWidget`)에 **이식 완료**(백엔드 RAG 연결).
@@ -258,6 +282,42 @@ KMU Pick AI는 국민대학교의 학교·단과대 공지를 실제로 수집�
 
 ---
 
+## 10-C. UI / UX 디자인 (Taste + 국민대 공식 컬러)
+
+> 상태: **구현 완료** (커밋 `4ed57be`, 디자인 방향 `DESIGN.md`/`PRODUCT.md`) · 라이트·다크 모드
+
+대학생 대상의 "보존형 캠퍼스 공지" 제품으로, 따뜻한 editorial 톤의 Taste variant를 적용했다. 기존 레이아웃·추천·백엔드 동작은 보존하고 시각 언어만 교체했다.
+
+### 컬러 토큰 (`front/app/kmu-brand.css`)
+국민대 공식 엠블럼 컬러 사용:
+- Orange `#F3953F` — primary action
+- Green `#00A470` — 선택/저장 상태
+- Yellow `#FFCE44` — 랭크(TOP) 강조
+- Blue `#004F9F` — 브랜드 토큰 (주 인터페이스 액센트 아님)
+- 다크: forest-charcoal 표면 / 라이트: white·soft green 표면, 작은 컬러 텍스트는 대비 보정
+
+### 디자인 규칙
+- 네이티브 시스템 sans, 헤드라인 타이트 트래킹 (폰트 네트워크 요청 없음)
+- 카드 radius 14px / 컨트롤 6px / 온보딩 다이얼로그 18px
+- hover 피드백 절제 + `prefers-reduced-motion` 지원
+- 통계 스트립(ruled), 포스터 이미지 상단 크롭(세로 포스터 안 잘리게)
+
+### 보존 (변경 안 함)
+좌측 네비게이션, 탑바, 데스크톱 3카드 TOP 3 그리드, 통계, 실제 포스터 이미지, 공지 상세, 백엔드·추천 동작
+
+### 첫 방문 온보딩 다이얼로그 (`ProfileDialog`)
+- 2단계(학적 정보 → 관심사) native `<dialog>` — focus containment, Escape 닫기, backdrop, 모바일 스크롤
+- 저장은 **기존 프로필 검증·온보딩 저장 로직 재사용**. explore/close는 온보딩 완료로 기록하지 않음
+- 미리보기: `?preview=home`(초기 설정 우회), `?preview=onboarding`(저장돼 있어도 온보딩 열기)
+- 커스텀 관심사/키워드는 "내 정보"에 유지, 다이얼로그 내부 스크롤 없음, 모바일 입력 16px(iOS 줌 방지)
+
+### 스크롤 & 챗봇 도크 (`front/app/scroll-and-chat.css`)
+- `scrollbar-minimal`: 얇고 투명한 트랙, hover/focus 시 노출, 터치 지원
+- 챗봇은 **modeless 우하단 도크** — 전체화면 backdrop·페이지 스크롤 락 없음, 공지를 읽으면서 사용 가능
+- 홈 공지 카드 Space 키 활성화
+
+---
+
 ## 11. 프론트–백엔드 연결
 
 > 상태: **구현 완료** (프로필 · 홈 챗봇) · **계획** (공지 목록 조회 연결)
@@ -319,7 +379,7 @@ KMU Pick AI는 국민대학교의 학교·단과대 공지를 실제로 수집�
 - 공지 크롤러 (목록·본문·첨부·이미지, 캐시, 502/mixed)
 - OpenAPI 3.1 명세
 - 학적 프로필 모델/검증 (studentType·college·major·grade·interests·customInterests·keywords)
-- Opportunity Score / D-Day (deterministic)
+- Opportunity Score / D-Day (deterministic) — **학과(전공)·단과대 일치를 점수에 반영** (커밋 `1cd2fa0`)
 - 관심사 추가·삭제
 - 공지 원문 import 스크립트 (`import-notices.mjs`)
 - Fallback (크롤 mixed/502, DB 503)
@@ -327,6 +387,7 @@ KMU Pick AI는 국민대학교의 학교·단과대 공지를 실제로 수집�
 - 챗봇 **Markdown 답변 + "내 정보" 개인화 컨텍스트 + 공지 이미지 카드** (커밋 `ac4a2c2`)
 - 벡터 인덱싱 스크립트 (`CHATBOT/index-notices.mjs`), 변경 없는 공지 재임베딩 스킵
 - 공지 소스 17개 명문화(`front/data/noticeSources.js`) + "내 정보" 학부 기준 정리(`UNDERGRAD_SCHOOLS`) (커밋 `5286aa0`, PR #8)
+- **Taste 디자인 + 국민대 공식 컬러** 적용(`kmu-brand.css`), 첫 방문 온보딩 다이얼로그(`ProfileDialog`), modeless 챗봇 도크(`scroll-and-chat.css`), 디자인 문서(`DESIGN.md`/`PRODUCT.md`) (커밋 `4ed57be`)
 
 ### 계획 (미구현 / 설정 필요)
 - 챗봇 임베딩·LLM 모델 API 실제 등록 (`.env` `CHATBOT_*`) 및 운영 인덱싱 (현재 모델 미등록)
@@ -356,9 +417,11 @@ KMU Pick AI는 국민대학교의 학교·단과대 공지를 실제로 수집�
 
 ### 저장소 구조 (팀 통합본)
 ```text
-front/      Next.js 16 + React 19 + Tailwind v4 (App Router, components/kmu/*)
+front/      Next.js 16 + React 19 + Tailwind v4 (App Router, components/kmu/*,
+            app/kmu-brand.css · scroll-and-chat.css, data/noticeSources.js)
 backend/    Node ≥22 무의존성 서버 + 크롤러 + Qdrant 연동 (src/, CHATBOT/, openapi.json)
 docs/       notice-data-spec.md, screenshots/
+DESIGN.md / PRODUCT.md   디자인 방향(Taste + KMU 컬러) · 제품 정의
 docker-compose.yml / backend/compose.yaml   (로컬 Qdrant 선택 실행)
 mobile-android/local-crawler/   로컬 실험용 크롤러 (output/*.json, 선택)
 prd.md
