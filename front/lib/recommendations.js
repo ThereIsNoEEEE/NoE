@@ -1,5 +1,5 @@
 import { INTEREST_KEYWORDS, SCHOOLS } from "@/data/profile";
-import { calculateDDay, formatDDay } from "@/lib/dates";
+import { calculateDDay, formatDDay, parseDate, startOfDay } from "@/lib/dates";
 
 function matchesKeyword(e, t) {
   const n = String(t || "")
@@ -138,7 +138,7 @@ function buildRecommendationReason(e, t) {
             : r.push("지원 대상이 명시되지 않아 원문 확인 필요"),
     e.matchedKeywords.length && r.push(`키워드 ${n(e.matchedKeywords)} 포함`),
     e.dday === null
-      ? r.push("상시 모집")
+      ? r.push("마감일 미확인(원문 확인)")
       : e.dday >= 0 &&
         r.push(
           e.dday <= 7
@@ -149,6 +149,17 @@ function buildRecommendationReason(e, t) {
   );
 }
 
+// 점수 내림차순 → 마감 임박 → 최신 게시 → id (같은 입력이면 항상 같은 순서)
+function compareRanked(r, l) {
+  if (l.score.total !== r.score.total) return l.score.total - r.score.total;
+  const i = r.score.dday ?? 9999;
+  const o = l.score.dday ?? 9999;
+  return i !== o
+    ? i - o
+    : String(l.notice.date).localeCompare(String(r.notice.date)) ||
+        String(r.notice.id).localeCompare(String(l.notice.id));
+}
+
 function rankNotices(e, t, n = new Date()) {
   return t
     .map((r) => ({
@@ -156,18 +167,54 @@ function rankNotices(e, t, n = new Date()) {
       score: calculateOpportunityScore(e, r, n),
     }))
     .filter((r) => !r.score.expired)
-    .sort((r, l) => {
-      if (l.score.total !== r.score.total) return l.score.total - r.score.total;
-      const i = r.score.dday ?? 9999;
-      const o = l.score.dday ?? 9999;
-      return i !== o
-        ? i - o
-        : String(l.notice.date).localeCompare(String(r.notice.date)) ||
-            String(r.notice.id).localeCompare(String(l.notice.id));
-    })
+    .sort(compareRanked)
     .map((r, l) => ({
       ...r,
       rank: l + 1,
+    }));
+}
+
+// ---- TOP 3 산출 기준 (TOP3_산출기준.md) ----
+const TOP_COUNT = 3;
+const UNKNOWN_DEADLINE_MAX_AGE_DAYS = 30;
+
+// TOP 3 후보에서 제외해야 하면 이유 코드를, 아니면 null 을 반환한다.
+//  expired       : 접수 기간 지남 (오늘 마감 D-Day 는 포함)
+//  target        : 지원 대상 학적이 내 학적과 다름
+//  no-match      : 관심 분야·키워드가 하나도 안 맞음
+//  stale-unknown : 마감일 미확인 + 게시 후 30일 초과
+function getExclusionReason(notice, score, today = new Date()) {
+  if (score.expired) return "expired";
+  if (score.targetStatus === "no") return "target";
+  if (score.matchedInterests.length === 0 && score.matchedKeywords.length === 0)
+    return "no-match";
+  if (score.dday === null) {
+    const posted = parseDate(notice.date);
+    if (
+      posted &&
+      Math.round((startOfDay(today) - posted) / 864e5) >
+        UNKNOWN_DEADLINE_MAX_AGE_DAYS
+    )
+      return "stale-unknown";
+  }
+  return null;
+}
+
+// 수집·분석된 공지 → TOP 3. 제외 → 점수 → 정렬 → 상위 3개.
+// 후보가 3개 미만이면 있는 만큼만 반환한다 (빈자리를 채우지 않음).
+function getTopNotices(profile, notices, today = new Date(), count = TOP_COUNT) {
+  return (Array.isArray(notices) ? notices : [])
+    .map((notice) => ({
+      notice,
+      score: calculateOpportunityScore(profile, notice, today),
+    }))
+    .filter((x) => getExclusionReason(x.notice, x.score, today) === null)
+    .sort(compareRanked)
+    .slice(0, count)
+    .map((x, i) => ({
+      ...x,
+      rank: i + 1,
+      deadlineUnknown: x.score.dday === null,
     }));
 }
 
@@ -182,4 +229,8 @@ export {
   calculateOpportunityScore,
   buildRecommendationReason,
   rankNotices,
+  TOP_COUNT,
+  UNKNOWN_DEADLINE_MAX_AGE_DAYS,
+  getExclusionReason,
+  getTopNotices,
 };

@@ -291,6 +291,28 @@ async function requestAIAnalysis(e) {
   return r;
 }
 
+// AI 가 준 마감일을 본문 정규식으로 교차 검증한다.
+//  1) 정규식이 날짜를 찾으면 그 값을 우선 사용 (AI 오류 방지)
+//  2) 정규식이 못 찾았으면, AI 날짜가 본문/제목에 실제로 적혀 있을 때만 인정
+//  3) 그 외(근거 없는 날짜)는 null → "마감일 미확인"
+function crossCheckDeadline(notice, aiDeadline) {
+  const text = `${notice.title} ${notice.content || ""}`;
+  const found = extractDeadline(notice.title, notice.content || "", notice.date);
+  if (found) return found;
+  const d = parseDate(aiDeadline);
+  if (!d) return null;
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  const forms = [
+    `${m}월 ${day}일`,
+    `${m}월${day}일`,
+    `${m}/${day}`,
+    `${m}.${day}`,
+    `${String(m).padStart(2, "0")}.${String(day).padStart(2, "0")}`,
+  ];
+  return forms.some((f) => text.includes(f)) ? aiDeadline : null;
+}
+
 async function analyzeNotices(e) {
   const t = readAnalysisCache();
   const n = {};
@@ -309,7 +331,9 @@ async function analyzeNotices(e) {
       o = await requestAIAnalysis(r);
     } catch {}
     for (const s of r) {
-      n[s.id] = o[s.id] || analyzeNoticeLocally(s);
+      n[s.id] = o[s.id]
+        ? { ...o[s.id], deadline: crossCheckDeadline(s, o[s.id].deadline) }
+        : analyzeNoticeLocally(s);
       t[analysisCacheKey(s)] = n[s.id];
     }
     writeAnalysisCache(t);
@@ -341,6 +365,7 @@ export {
   countKeywordMatches,
   extractGrades,
   analyzeNoticeLocally,
+  crossCheckDeadline,
   ANALYSIS_STORAGE_KEY,
   AI_TIMEOUT_MS,
   readAnalysisCache,
