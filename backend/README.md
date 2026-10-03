@@ -103,7 +103,7 @@ PowerShell 예제는 실제 DB에 예제 프로필 한 건을 생성합니다:
 
 ## 크롤러
 
-`src/crawler.mjs`에 학교/소프트웨어융합대학의 목록·본문·첫 이미지 수집, 정규화, 캐시를 집약했습니다. `GET /api/notices`, `POST /api/crawl`, `GET /api/images/{id}`로 제공합니다. 게시판당 최대 12건, 상세 순차 수집, 목록 10분/본문 1시간 캐시, 강제 갱신 최소 30초 간격입니다. 모든 출처 실패 시 HTTP 502, 일부 실패는 `mode: mixed`입니다. 백엔드는 샘플 공지로 바꾸지 않으며 DB가 없어도 크롤링은 동작합니다. 첫 상세 수집이 프런트의 12초 제한을 넘으면 재시도가 필요할 수 있습니다. 공지 DB 저장, `/api/analyze`, AI 임베딩은 미구현입니다.
+`src/crawler.mjs`에 학교/소프트웨어융합대학의 목록·본문·첫 이미지 수집, 정규화, 캐시를 집약했습니다. `GET /api/notices`, `POST /api/crawl`, `GET /api/images/{id}`로 제공합니다. 게시판당 최대 12건, 상세 순차 수집, 목록 10분/본문 1시간 캐시, 강제 갱신 최소 30초 간격입니다. 모든 출처 실패 시 HTTP 502, 일부 실패는 `mode: mixed`입니다. 백엔드는 샘플 공지로 바꾸지 않으며 DB가 없어도 크롤링은 동작합니다. 첫 상세 수집이 프런트의 12초 제한을 넘으면 재시도가 필요할 수 있습니다. 크롤링 결과의 자동 DB 저장, `/api/analyze`, AI 임베딩은 미구현입니다. 외부 JSON 파일의 DB 저장은 아래 가져오기 스크립트로 제공합니다.
 
 ## 테스트
 
@@ -123,3 +123,22 @@ node --env-file-if-exists=.env scripts/integration.mjs
 - [Qdrant collection 생성](https://api.qdrant.tech/api-reference/collections/create-collection)
 - [Qdrant point 저장](https://api.qdrant.tech/api-reference/points/upsert-points)
 - [Qdrant point 조회](https://api.qdrant.tech/api-reference/points/get-point)
+
+## 외부 크롤링 JSON 가져오기
+
+```sh
+cd backend
+npm run import:notices -- /Users/bong/Downloads/kookmin-notices --dry-run
+# backend/.env에 DB 주소·키 설정 후 실제 저장
+npm run import:notices -- /Users/bong/Downloads/kookmin-notices --write
+```
+
+폴더 또는 JSON 파일 경로를 받으며 배열과 `{ notices: [...] }`, `{ items: [...] }` 형식을 지원합니다. 기본은 dry-run으로 DB 접속·저장·파일 복사를 하지 않습니다. 원문 JSON과 에셋 파일 경로를 검증하고 같은 게시물의 중복을 제거합니다. 검증 오류가 있으면 실제 저장을 시작하지 않습니다.
+
+공지 원문은 프로필과 별도인 `kmu_notices_raw_v1` payload-only 컬렉션에 저장합니다. `--collection`으로 이름을 변경할 수 있지만 프로필 컬렉션은 허용하지 않습니다. 게시판과 게시물 식별자에서 고정 UUID를 생성하므로 같은 파일을 다시 실행하면 동일 point를 갱신합니다. 기존 벡터 컬렉션의 구조를 바꾸거나 삭제하지 않습니다.
+
+payload는 `{ kind: "notice", schemaVersion: 1, notice, analysisStatus: "pending", needsOcr, needsAttachmentExtraction, reviewRequired, assetDirectory }`입니다. 본문·HTML·출처·이미지·첨부·추출 상태를 보존하며 텍스트 길이를 제한하지 않습니다. 작성자 PC의 `file://` 이미지 링크는 `originalUrl`로 보존하고 사용 불가 상태로 표시합니다. 이미지·첨부의 미처리 상태를 명시하며 텍스트 공지라도 이미지에 핵심 정보가 남아 있을 수 있습니다. 지원 대상·마감·요약·임베딩은 이 단계에서 생성하지 않습니다.
+
+데이터 폴더에 포함된 로컬 에셋은 실제 저장 시 `backend/storage/imports/<데이터 해시>/`에 복사합니다. DB에는 경로 참조만 저장하므로 다른 서버로 이동할 때 이 저장 폴더도 함께 배포해야 합니다. `--storage-dir`로 저장 위치를 바꿀 수 있습니다. 원격 이미지·첨부는 자동 다운로드하지 않습니다.
+
+실제 저장 중 오류가 나면 완료 확인된 건수와 실패를 출력하고 종료 코드 1을 반환합니다. 실패한 요청은 DB에서 완료됐을 수 있으므로 같은 파일로 재실행해 갱신하세요. HTTP 업로드 API나 프런트의 공지 조회를 이 컬렉션으로 연결하는 작업은 별도입니다.
