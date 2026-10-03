@@ -80,7 +80,7 @@ test('미등록 모델을 실제 답변처럼 가장하지 않고 비용 발생 
 
 test('질문/상위 개수/임의 collection/filter/provider 입력을 검증한다', () => {
   for (const input of [null, [], {}, { prompt: ' ' }, { prompt: 'x'.repeat(4001) }, { prompt: 'a', topK: '10' }, { prompt: 'a', topK: 0 }, { prompt: 'a', topK: 21 }, { prompt: 'a', mode: 'mock' }, { prompt: 'a', collection: 'profiles' }, { prompt: 'a', filter: {} }, { prompt: 'a', llmUrl: 'http://evil' }]) assert.throws(() => validateChatRequest(input), e => e.status === 422);
-  assert.deepEqual(validateChatRequest({ prompt: ' AI ', topK: 1 }), { prompt: 'AI', topK: 1, mode: 'answer' });
+  assert.deepEqual(validateChatRequest({ prompt: ' AI ', topK: 1 }), { prompt: 'AI', topK: 1, mode: 'answer', profile: null });
 });
 
 test('잘못된 임베딩, 0 벡터, 차원 제한을 거부한다', () => {
@@ -325,4 +325,31 @@ test('재색인 시 내용·모델·청크 수가 같은 공지는 임베딩하�
   assert.deepEqual([again.indexedNotices, again.skippedNotices, embeds], [0, 1, first]);
   const changed = await indexer.index([{ ...document(), content: '내용이 바뀐 공지', contentHash: undefined }]);
   assert.equal(changed.indexedNotices, 1); assert.ok(embeds > first);
+});
+
+test('답변 출처에 원문 공지 이미지 URL을 붙이고 조회 실패는 무시한다', async () => {
+  const raw = 'aaaaaaaa-aaaa-5aaa-8aaa-aaaaaaaaaaaa';
+  const calls = [];
+  const client = { collectionPath: n => `/collections/${n}`, request: async (method, path, body) => { calls.push({ path, body }); return [{ id: raw, payload: { notice: { images: [{ url: 'https://cs.kookmin.ac.kr/poster.png' }] } } }, { id: 'bbbbbbbb-bbbb-5bbb-8bbb-bbbbbbbbbbbb', payload: { notice: { images: [] } } }]; } };
+  const retriever = new QdrantRetriever(client, settings());
+  assert.deepEqual(await retriever.imageUrls([raw, raw, 'bbbbbbbb-bbbb-5bbb-8bbb-bbbbbbbbbbbb', 'not-a-uuid']), { [raw]: `/api/db/notices/${raw}/image` });
+  assert.equal(calls[0].path, `/collections/${settings().rawCollection}/points`);
+  assert.equal(calls[0].body.ids.length, 2);
+  const failing = new QdrantRetriever({ collectionPath: n => n, request: async () => { throw new QdrantError(500); } }, settings());
+  assert.deepEqual(await failing.imageUrls([raw]), {});
+});
+
+test('나의 정보(profile)를 검증해 검색 질의와 LLM 문맥에 반영하고, 불완전하면 무시한다', async () => {
+  const profile = { studentType: '대학원', college: '소프트웨어융합대학원', major: 'AI', grade: 1, interests: ['취업'], customInterests: [], keywords: ['해커톤'], extra: 'x' };
+  const parsed = validateChatRequest({ prompt: '추천해줘', profile });
+  assert.deepEqual(parsed.profile, { studentType: '대학원', college: '소프트웨어융합대학원', major: 'AI', grade: 1, interests: ['취업'], customInterests: [], keywords: ['해커톤'] });
+  assert.equal(validateChatRequest({ prompt: 'q', profile: { major: 'AI' } }).profile, null);
+  assert.equal(validateChatRequest({ prompt: 'q', profile: 'bad' }).profile, null);
+  const { messages } = buildMessages('추천해줘', [], 12000, new Date(), parsed.profile);
+  assert.equal(JSON.parse(messages[1].content).userProfile.major, 'AI');
+  assert.equal(JSON.parse(buildMessages('q', [], 12000).messages[1].content).userProfile, undefined);
+  const embedded = [];
+  const service = new ChatbotService({ config: settings(), embedder: { isConfigured: () => true, embed: async text => { embedded.push(text); return [1, 0]; } }, retriever: { search: async () => [] }, llm: { isConfigured: () => true } });
+  await service.query({ prompt: '추천해줘', profile });
+  assert.match(embedded[0], /^추천해줘\n\(관심: AI, 취업, 해커톤\)$/);
 });

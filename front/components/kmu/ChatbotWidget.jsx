@@ -6,7 +6,7 @@ import { ChatPanel } from "./ChatPanel";
 
 // 오른쪽 하단 고정 챗봇 버튼 + 클릭 시 열리는 팝업 창.
 // 대화 내용은 백엔드 RAG 챗봇(ChatPanel, POST /api/chatbot)이 처리한다.
-export function ChatbotWidget() {
+export function ChatbotWidget({ profile }) {
   const [open, setOpen] = React.useState(false);
 
   React.useEffect(() => {
@@ -35,7 +35,7 @@ export function ChatbotWidget() {
               {"×"}
             </Button>
           </header>
-          <ChatPanel />
+          <ChatPanel profile={profile} />
         </section>
       </div>
       <Button

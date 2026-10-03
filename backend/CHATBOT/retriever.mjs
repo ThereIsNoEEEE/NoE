@@ -1,6 +1,7 @@
 import { ApiError } from '../src/http.mjs';
 import { QdrantError } from '../src/db/qdrant.mjs';
 import { validateVector } from './schema.mjs';
+import { imageCandidates } from '../src/db/notice-images.mjs';
 
 export function dbError(error) {
   if (!(error instanceof QdrantError)) return error;
@@ -21,6 +22,17 @@ export function safeSourceUrl(value) {
 
 export class QdrantRetriever {
   constructor(client, config) { Object.assign(this, { client, config }); }
+
+  // Poster URLs (served by GET /api/db/notices/:id/image) for the raw notices behind the sources.
+  // Display-only: never sent to the LLM, and failures just mean no images.
+  async imageUrls(rawPointIds, { signal } = {}) {
+    const ids = [...new Set(rawPointIds.filter(id => /^[0-9a-f-]{36}$/.test(id)))];
+    if (!ids.length) return {};
+    try {
+      const points = await this.client.request('POST', `${this.client.collectionPath(this.config.rawCollection)}/points`, { ids, with_payload: ['notice.images', 'assetDirectory'], with_vector: false }, { signal });
+      return Object.fromEntries((points || []).filter(p => imageCandidates(p.payload).length).map(p => [String(p.id), `/api/db/notices/${p.id}/image`]));
+    } catch { return {}; }
+  }
   async search(vector, topK, { signal } = {}) {
     validateVector(vector);
     try {

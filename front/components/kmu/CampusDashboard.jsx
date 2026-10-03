@@ -559,7 +559,7 @@ export function CampusDashboard() {
           </footer>
         </div>
       </main>
-      <ChatbotWidget />
+      <ChatbotWidget profile={profile} />
       <NoticeDetail
         item={selectedNotice}
         saved={
