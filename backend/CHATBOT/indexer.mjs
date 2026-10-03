@@ -44,6 +44,17 @@ export class NoticeIndexer {
     } catch (error) { throw dbError(error); }
   }
 
+  async isUpToDate(doc, chunkCount) {
+    try {
+      const point = await this.client.point(this.config.collection, pointId(this.config.embedding.space, doc.rawPointId, 0));
+      const p = point?.payload;
+      return p?.embeddingModel === this.config.embedding.model && p?.sourceContentHash === doc.sourceContentHash && p?.chunkCount === chunkCount;
+    } catch (error) {
+      if (error instanceof QdrantError && error.status === 404) return false;
+      throw dbError(error);
+    }
+  }
+
   async index(notices) {
     if (!this.embedder.isConfigured()) throw new ApiError(503, 'EMBEDDING_NOT_CONFIGURED', '공지와 질문에 공통으로 사용할 임베딩 API를 설정하세요.');
     if (!Array.isArray(notices) || notices.length > 100) throw new ApiError(422, 'INDEX_INPUT_INVALID', '한 번에 최대 100개 공지를 넣을 수 있습니다.');
@@ -65,9 +76,11 @@ export class NoticeIndexer {
         reviewRequired: Boolean(notice.reviewRequired || notice.isTruncated || notice.contentStatus === 'extraction_failed'),
       };
     });
-    let pointCount = 0;
+    let pointCount = 0, skippedNotices = 0;
     for (const doc of docs) {
       const chunks = chunkText(`${doc.title}\n${doc.content}`);
+      // Re-runs skip unchanged notices so embedding cost is paid once per content version.
+      if (await this.isUpToDate(doc, chunks.length)) { skippedNotices++; continue; }
       const points = [];
       for (const [index, content] of chunks.entries()) {
         const vector = validateVector(await this.embedder.embed(content));
@@ -90,6 +103,6 @@ export class NoticeIndexer {
       } catch (error) { throw dbError(error); }
       pointCount += points.length;
     }
-    return { indexedNotices: docs.length, indexedChunks: pointCount, collection: this.config.collection };
+    return { indexedNotices: docs.length - skippedNotices, skippedNotices, indexedChunks: pointCount, collection: this.config.collection };
   }
 }

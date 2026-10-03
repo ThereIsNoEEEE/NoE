@@ -99,7 +99,7 @@ CHATBOT_REQUEST_TIMEOUT_MS=18000
 1. `HttpEmbeddingProvider`: `POST CHATBOT_EMBEDDING_URL`에 `{ "model": "...", "input": "질문 또는 공지 청크" }` → `{ "embedding": [0.1, 0.2, ...] }`.
 2. `HttpLlmProvider`: `POST CHATBOT_LLM_URL`에 `{ "model": "...", "messages": [{"role":"system","content":"..."},{"role":"user","content":"..."}], "maxOutputTokens": 800 }` → `{ "answer": "텍스트 답변" }`.
 
-키가 있으면 `Authorization: Bearer ...`로 전송합니다. 다른 인증 헤더가 필요한 사업자는 어댑터에서 변경하세요. 모델 URL은 HTTPS 또는 로컬 HTTP만 허용하고 리디렉션을 따르지 않습니다. LLM에는 질문과 허용한 공지 필드만 전송하며 API 키, 학사 프로필, 원문 HTML, 로컬 이미지 경로는 전달하지 않습니다. 실제 서비스 연결은 외부 제공자에게 질문/공지 텍스트를 전송하므로 해당 제공자의 데이터 처리 정책을 먼저 확인하세요.
+키가 있으면 `Authorization: Bearer ...`로 전송합니다. 다른 인증 헤더가 필요한 사업자는 어댑터에서 변경하세요. 모델 URL은 HTTPS 또는 로컬 HTTP만 허용하고 리디렉션을 따르지 않습니다. LLM에는 질문, 허용한 공지 필드, 요청에 담긴 나의 정보(`profile`: 학적·소속·전공·학년·관심 분야·키워드)만 전송합니다. API 키, 저장된 학사 프로필 컬렉션, 원문 HTML, 로컬 이미지 경로는 전달하지 않습니다. 실제 서비스 연결은 외부 제공자에게 질문/공지 텍스트를 전송하므로 해당 제공자의 데이터 처리 정책을 먼저 확인하세요.
 
 ## 검색용 벡터 만들기
 

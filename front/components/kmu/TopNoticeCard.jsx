@@ -25,7 +25,6 @@ export function TopNoticeCard({
           <span>{notice.date || "날짜 미상"}</span>
         </div>
         <h3>{notice.title}</h3>
-        {notice.imageUrl ? <div className="top-notice-visual"><NoticeImage src={notice.imageUrl} title={notice.title} /></div> : null}
         {((s = notice.category) == null ? void 0 : s.length) > 0 && (
           <div className="cat-row">
             {notice.category.map((a) => (
@@ -71,6 +70,11 @@ export function TopNoticeCard({
           </Button>
         </div>
       </div>
+      {notice.imageUrl ? (
+        <div className="top-poster">
+          <NoticeImage src={notice.imageUrl} title={notice.title} />
+        </div>
+      ) : null}
       <div className="score-col">
         <div
           className="score-ring"
