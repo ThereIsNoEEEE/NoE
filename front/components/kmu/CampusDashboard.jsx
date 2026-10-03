@@ -23,6 +23,7 @@ import { NoticeDetail } from "./NoticeDetail";
 import { HomeDashboard } from "./HomeDashboard";
 import { NoticeFeed } from "./NoticeFeed";
 import { ThemeToggle } from "./ThemeToggle";
+import { NotificationBell } from "./NotificationBell";
 import { ChatbotWidget } from "./ChatbotWidget";
 import { CollectedNotices } from "./CollectedNotices";
 import { ProfileDialog } from "./ProfileDialog";
@@ -496,6 +497,9 @@ export function CampusDashboard() {
                 : "공지 수집 중…"}
           </div>
           <div className="top-actions">
+            <NotificationBell
+              onNew={(items) => showToast(items.length > 1 ? `새 공지 ${items.length}건이 올라왔어요.` : `새 공지: ${items[0].title}`)}
+            />
             <ThemeToggle />
             <Button
               variant="original"

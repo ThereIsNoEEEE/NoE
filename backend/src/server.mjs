@@ -11,8 +11,10 @@ import { NoticesRepository } from './db/notices.mjs';
 import { handleDbRoutes } from './db/routes.mjs';
 import { createChatbotService } from '../CHATBOT/service.mjs';
 import { handleChatbotRoutes } from '../CHATBOT/routes.mjs';
+import { acceptWebSocket } from './ws.mjs';
+import { NoticeFeed } from './notice-feed.mjs';
 
-export function createServer({ config = loadConfig(), repository, notices, chatbot, crawler = { getNotices, getNoticeImage } } = {}) {
+export function createServer({ config = loadConfig(), repository, notices, chatbot, feed, crawler = { getNotices, getNoticeImage } } = {}) {
   repository ??= new ProfilesRepository(new QdrantClient(config.qdrant), config.qdrant.collection);
   chatbot ??= createChatbotService(config);
   notices ??= new NoticesRepository(repository.client, config.qdrant.noticesCollection);
@@ -57,6 +59,17 @@ export function createServer({ config = loadConfig(), repository, notices, chatb
       json(response, known ? error.status : 500, { error: { code: known ? error.code : 'INTERNAL_ERROR', message: known ? error.message : '요청 처리에 실패했습니다.', ...(known && error.details ? { details: error.details } : {}) } });
     }
   });
+  // WebSocket: GET /ws/notices (header bell). The front server proxies it from the public port.
+  server.on('upgrade', (request, socket) => {
+    const hostname = (() => { try { return new URL(`http://${request.headers.host || ''}`).hostname; } catch { return ''; } })();
+    const allowedHost = (config.allowedHosts ?? ['127.0.0.1', 'localhost', '[::1]']).includes(hostname);
+    if (!feed || !allowedHost || new URL(request.url, 'http://local').pathname !== '/ws/notices') {
+      socket.end(`HTTP/1.1 ${allowedHost ? '404 Not Found' : '403 Forbidden'}\r\nConnection: close\r\n\r\n`);
+      return;
+    }
+    const client = acceptWebSocket(request, socket);
+    if (client) feed.add(client);
+  });
   server.requestTimeout = 15000;
   server.headersTimeout = 10000;
   return server;
@@ -65,7 +78,8 @@ export function createServer({ config = loadConfig(), repository, notices, chatb
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   const config = loadConfig();
   if (config.qdrant.insecureRemote) console.warn('주의: 원격 Qdrant HTTP 개발 연결입니다. 키와 데이터가 암호화되지 않습니다. 실제 개인정보에는 HTTPS 또는 보안 터널을 사용하세요.');
-  const server = createServer({ config });
+  const feed = new NoticeFeed(new NoticesRepository(new QdrantClient(config.qdrant), config.qdrant.noticesCollection), { intervalMs: config.noticeFeedIntervalMs }).start();
+  const server = createServer({ config, feed });
   server.on('error', error => { console.error(error.code === 'EADDRINUSE' ? '포트가 사용 중입니다. .env에서 PORT를 변경하세요.' : '서버를 시작하지 못했습니다.'); process.exitCode = 1; });
   server.listen(config.port, config.host, () => console.log(`KMU Pick 백엔드: http://${config.host}:${config.port} (Qdrant 상태: /api/db/health)`));
 }

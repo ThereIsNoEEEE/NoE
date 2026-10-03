@@ -20,5 +20,7 @@ export function loadConfig(env = process.env) {
     if (parsed.origin !== origin || !['127.0.0.1', 'localhost', '[::1]'].includes(parsed.hostname)) throw new Error('개발용 CORS는 로컬 HTTP(S) origin만 허용합니다.');
   }
   const allowedHosts = ['127.0.0.1', 'localhost', '[::1]', ...(env.ALLOWED_HOSTS || '').split(',').map(x => x.trim()).filter(Boolean)];
-  return { port, host: env.HOST || '127.0.0.1', allowedHosts, allowedOrigins, chatbot: loadChatbotConfig(env), qdrant: { url: url.href.replace(/\/$/, ''), apiKey: env.QDRANT_API_KEY || '', collection, noticesCollection, timeoutMs, insecureRemote: !loopback && url.protocol === 'http:' } };
+  const noticeFeedIntervalMs = Number(env.NOTICE_FEED_INTERVAL_MS || 60000);
+  if (!Number.isInteger(noticeFeedIntervalMs) || noticeFeedIntervalMs < 5000 || noticeFeedIntervalMs > 3600000) throw new Error('NOTICE_FEED_INTERVAL_MS는 5000~3600000이어야 합니다.');
+  return { port, host: env.HOST || '127.0.0.1', noticeFeedIntervalMs, allowedHosts, allowedOrigins, chatbot: loadChatbotConfig(env), qdrant: { url: url.href.replace(/\/$/, ''), apiKey: env.QDRANT_API_KEY || '', collection, noticesCollection, timeoutMs, insecureRemote: !loopback && url.protocol === 'http:' } };
 }
