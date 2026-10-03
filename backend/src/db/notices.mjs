@@ -96,7 +96,12 @@ export function toNoticeItem(payload) {
     sourceName: n.sourceName || '',
     category: n.sourceCategory || n.sourceBoard || '',
     pinned: Boolean(n.pinned),
+    sourceId: n.sourceId || '',
+    sourceBoard: n.sourceBoard || '',
+    contentStatus: n.contentStatus || null,
+    collectedAt: n.collectedAt || null,
     analysisStatus: payload.analysisStatus || null,
+    needsOcr: Boolean(payload.needsOcr),
   };
 }
 
