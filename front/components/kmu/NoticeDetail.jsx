@@ -118,7 +118,7 @@ export function NoticeDetail({
               <div className="detail-row">
                 <span>{"분석 방식"}</span>
                 <strong>
-                  {l.analyzedBy === "ai" ? "AI 분석" : "규칙 기반(Local Mock)"}
+                  {l.analyzedBy === "ai" ? "AI 분석" : "규칙 기반"}
                 </strong>
               </div>
             </div>

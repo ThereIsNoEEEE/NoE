@@ -294,7 +294,7 @@ export function CampusDashboard() {
       {dataStatus.mode === "mock" && (
         <span className="status-pill warn">
           <i />
-          {"AI 서버 미연결 → 규칙 기반 분석(Local Mock)"}
+          {"AI 서버 미연결 → 규칙 기반 분석"}
         </span>
       )}
       {dataStatus.mode === "mixed" && (
