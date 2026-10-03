@@ -33,6 +33,8 @@ const KNOWN_SCHOOL_UNITS = [
   ),
 ].filter((e) => e.length >= 4);
 
+const KNOWN_COLLEGES = Object.values(SCHOOLS).flatMap((e) => Object.keys(e));
+
 function getNoticeSearchText(e) {
   return [
     e.title,
@@ -62,6 +64,39 @@ function calculateUrgencyScore(e) {
               : 4;
 }
 
+// "소프트웨어학부" → ["소프트웨어학부", "소프트웨어"]; 너무 짧은 핵심어(예: "법")는 쓰지 않는다.
+function getMajorTerms(major) {
+  const full = String(major || "").trim();
+  if (full.length < 2) return [];
+  const core = full.replace(/(학부|학과|전공)$/, "");
+  return core !== full && core.length >= 2 ? [full, core] : [full];
+}
+
+// 공지 출처 단과대(sourceName)와 본문을 나의 단과대·학과와 비교한다 (최대 15점).
+//  major   : 공지에 내 학과가 나온다            → 15
+//  college : 내 단과대 게시판 공지              → 12
+//  general : 소속 구분 없는 공지                → 8
+//  other-college : 다른 단과대 게시판 공지       → 0
+//  other   : 다른 소속만 언급                   → 0
+// 공지 출처 이름이 단과대 목록 이름과 다른 경우
+const UNIT_ALIASES = { KIBS: "KMU International Business School" };
+
+function calculateUnitMatch(profile, notice, text) {
+  const rawUnit = String(notice.sourceName || "").replace(/^국민대학교\s*/, "").trim();
+  const sourceUnit = UNIT_ALIASES[rawUnit] || rawUnit;
+  const college = String(profile.college || "").trim();
+  const sameCollege = (unit) => Boolean(unit && college && (unit.includes(college) || college.includes(unit)));
+  if (getMajorTerms(profile.major).some((term) => matchesKeyword(`${notice.title} ${text}`, term))) {
+    return { points: 15, match: "major", sourceUnit };
+  }
+  if (sameCollege(sourceUnit)) return { points: 12, match: "college", sourceUnit };
+  const sourceIsCollege = KNOWN_COLLEGES.some((c) => sourceUnit && (sourceUnit.includes(c) || c.includes(sourceUnit)));
+  const mentionsOtherUnit = KNOWN_SCHOOL_UNITS.some((u) => text.includes(u) && !sameCollege(u));
+  if (sourceIsCollege) return { points: 0, match: "other-college", sourceUnit };
+  if (mentionsOtherUnit) return { points: 0, match: "other", sourceUnit };
+  return { points: 8, match: "general", sourceUnit };
+}
+
 function calculateOpportunityScore(e, t, n = new Date()) {
   const r = getNoticeSearchText(t);
   const l = getNoticeFullText(t);
@@ -71,30 +106,27 @@ function calculateOpportunityScore(e, t, n = new Date()) {
     return getInterestKeywords(c).some((y) => matchesKeyword(m, y));
   });
   const s = o.length === 0 ? 0 : o.length === 1 ? 28 : 40;
+  // 지원 대상 적합성(30) = 학적 10 + 학년 5 + 소속(단과대·학과) 15
   const a = t.target || [];
   let f = 0;
   let p = "ok";
-  if (a.length === 0) {
-    f = 15;
-    p = "unknown";
-  } else if (a.includes(e.studentType)) {
-    f = 20;
+  const unit = calculateUnitMatch(e, t, l);
+  if (a.length > 0 && !a.includes(e.studentType)) {
+    p = "no";
+  } else {
+    f = a.length === 0 ? 6 : 10;
+    if (a.length === 0) p = "unknown";
     const c = t.grades || [];
     if (c.length === 0 || c.includes(Number(e.grade))) {
       f += 5;
-    } else {
+    } else if (p === "ok") {
       p = "grade";
     }
-    const m = KNOWN_SCHOOL_UNITS.filter((N) => l.includes(N));
-    const y = [e.college, e.major].filter((N) => N && N.length >= 2);
-    if (m.length === 0 || y.some((N) => l.includes(N))) {
-      f += 5;
-    } else {
-      if (p === "ok") {
-        p = "unit";
-      }
+    f += unit.points;
+    if (unit.match.startsWith("other") && p === "ok") {
+      p = "unit";
     }
-  } else p = "no";
+  }
   const h = calculateDDay(t.deadline, n);
   const v = h !== null && h < 0;
   const g = calculateUrgencyScore(h);
@@ -111,6 +143,8 @@ function calculateOpportunityScore(e, t, n = new Date()) {
     matchedInterests: o,
     matchedKeywords: x,
     targetStatus: p,
+    unitMatch: unit.match,
+    sourceUnit: unit.sourceUnit,
     dday: h,
     expired: v,
   };
@@ -136,6 +170,9 @@ function buildRecommendationReason(e, t) {
           : e.targetStatus === "no"
             ? r.push(`${t.studentType}생 대상이 아닐 수 있어요`)
             : r.push("지원 대상이 명시되지 않아 원문 확인 필요"),
+    e.unitMatch === "major"
+      ? r.push(`내 학과(${t.major}) 관련`)
+      : e.unitMatch === "college" && r.push(`내 단과대(${e.sourceUnit}) 공지`),
     e.matchedKeywords.length && r.push(`키워드 ${n(e.matchedKeywords)} 포함`),
     e.dday === null
       ? r.push("마감일 미확인(원문 확인)")
