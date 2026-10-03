@@ -1,5 +1,9 @@
 # NoE Backend
 
+## 챗봇 추가
+
+`POST /api/chatbot`과 `GET /api/chatbot/status`를 추가했습니다. 관련 구현·색인 명령·모델 API 등록 방법은 [CHATBOT/README.md](CHATBOT/README.md)를 참고하세요. 기존 원문 공지와 개인 학사 정보는 보존하고 검색 벡터를 별도 컬렉션에 저장합니다. 아래 기존 범위 설명에서 미구현으로 표시된 임베딩 검색의 준비 구현은 이 폴더가 담당하며, 실제 모델 등록/벡터 색인/프런트 버튼 연결은 아직 실행하지 않았습니다.
+
 팀원과 AI 개발 도구를 위한 [공지 데이터와 DB 개발 명세](../docs/notice-data-spec.md)를 참고하세요.
 
 `front`의 학사 정보 입력 모델(`studentType`, `college`, `major`, `grade`, `interests`, `customInterests`, `keywords`)에 맞춘 Node.js 백엔드입니다. Node.js 22 이상, 외부 npm 의존성 없이 실행합니다.

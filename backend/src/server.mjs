@@ -9,9 +9,12 @@ import { QdrantClient } from './db/qdrant.mjs';
 import { ProfilesRepository } from './db/profiles.mjs';
 import { NoticesRepository } from './db/notices.mjs';
 import { handleDbRoutes } from './db/routes.mjs';
+import { createChatbotService } from '../CHATBOT/service.mjs';
+import { handleChatbotRoutes } from '../CHATBOT/routes.mjs';
 
-export function createServer({ config = loadConfig(), repository, notices, crawler = { getNotices, getNoticeImage } } = {}) {
+export function createServer({ config = loadConfig(), repository, notices, chatbot, crawler = { getNotices, getNoticeImage } } = {}) {
   repository ??= new ProfilesRepository(new QdrantClient(config.qdrant), config.qdrant.collection);
+  chatbot ??= createChatbotService(config);
   notices ??= new NoticesRepository(repository.client, config.qdrant.noticesCollection);
   const server = http.createServer(async (request, response) => {
     try {
@@ -24,6 +27,7 @@ export function createServer({ config = loadConfig(), repository, notices, crawl
         response.writeHead(204, { 'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' }); response.end(); return;
       }
       const url = new URL(request.url, base);
+      if (await handleChatbotRoutes(request, response, url, chatbot)) return;
       if (await handleDbRoutes(request, response, url, repository, notices)) return;
       if (request.method === 'GET' && url.pathname === '/api/health') { json(response, 200, { ok: true, service: 'kmu-pick-backend' }); return; }
       if (request.method === 'GET' && url.pathname === '/api/notices' || request.method === 'POST' && url.pathname === '/api/crawl') {

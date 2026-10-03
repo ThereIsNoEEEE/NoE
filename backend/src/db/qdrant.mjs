@@ -8,10 +8,10 @@ export class QdrantClient {
     Object.assign(this, { url, apiKey, timeoutMs, fetchImpl });
   }
 
-  async request(method, path, body) {
+  async request(method, path, body, { signal } = {}) {
     try {
       const response = await this.fetchImpl(this.url + path, {
-        method, redirect: 'error', signal: AbortSignal.timeout(this.timeoutMs),
+        method, redirect: 'error', signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(this.timeoutMs)]) : AbortSignal.timeout(this.timeoutMs),
         headers: { Accept: 'application/json', ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...(this.apiKey ? { 'api-key': this.apiKey } : {}) },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
@@ -26,7 +26,7 @@ export class QdrantClient {
   }
 
   collectionPath(name) { return `/collections/${encodeURIComponent(name)}`; }
-  collection(name) { return this.request('GET', this.collectionPath(name)); }
+  collection(name, options) { return this.request('GET', this.collectionPath(name), undefined, options); }
   createCollection(name) { return this.request('PUT', this.collectionPath(name), { vectors: {} }); }
   async upsert(name, id, payload) {
     const result = await this.request('PUT', `${this.collectionPath(name)}/points?wait=true`, { points: [{ id, vector: {}, payload }] });

@@ -10,6 +10,7 @@
     "start": "node --env-file-if-exists=.env src/server.mjs",
     "test": "node --test test/*.test.mjs",
     "test:integration": "node --env-file-if-exists=.env scripts/integration.mjs",
+    "chatbot:index": "node --env-file-if-exists=.env CHATBOT/index-notices.mjs",
     "import:notices": "node --env-file-if-exists=.env scripts/import-notices.mjs",
     "update:notices": "node --env-file-if-exists=.env scripts/update-notices.mjs"
   }
