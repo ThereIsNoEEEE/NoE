@@ -3,6 +3,10 @@ services:
     build: ./front
     container_name: noe-front
     restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      BACKEND_URL: http://backend:8001
     ports:
       - "3001:3000"
 
@@ -16,6 +20,7 @@ services:
       QDRANT_URL: http://qdrant:6333
       QDRANT_API_KEY: ${QDRANT_API_KEY}
       QDRANT_ALLOW_INSECURE_HTTP: "true"
+      ALLOWED_HOSTS: backend
     ports:
       - "127.0.0.1:8001:8001"
 

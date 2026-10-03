@@ -14,7 +14,7 @@ export function createServer({ config = loadConfig(), repository, crawler = { ge
   const server = http.createServer(async (request, response) => {
     try {
       const base = new URL(`http://${request.headers.host || ''}`);
-      if (!['127.0.0.1', 'localhost', '[::1]'].includes(base.hostname)) throw new ApiError(403, 'HOST_FORBIDDEN', '로컬 주소로만 접속할 수 있습니다.');
+      if (!(config.allowedHosts ?? ['127.0.0.1', 'localhost', '[::1]']).includes(base.hostname)) throw new ApiError(403, 'HOST_FORBIDDEN', '로컬 주소로만 접속할 수 있습니다.');
       const origin = request.headers.origin;
       if (origin && origin !== base.origin && !config.allowedOrigins.includes(origin)) throw new ApiError(403, 'ORIGIN_FORBIDDEN', '허용되지 않은 웹페이지에서의 요청입니다.');
       if (origin) { response.setHeader('Access-Control-Allow-Origin', origin); response.setHeader('Vary', 'Origin'); }
