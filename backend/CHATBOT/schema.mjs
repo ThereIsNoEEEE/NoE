@@ -3,7 +3,9 @@ import { PROFILE_FIELDS, validateProfile } from '../src/db/profile-schema.mjs';
 
 export function validateChatRequest(input, defaultTopK = 10) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new ApiError(422, 'CHATBOT_INPUT_INVALID', '질문 객체가 필요합니다.');
-  if (Object.keys(input).some(key => !['prompt', 'topK', 'mode', 'profile'].includes(key))) throw new ApiError(422, 'CHATBOT_INPUT_INVALID', 'prompt, topK, mode, profile만 허용합니다.');
+  if (Object.keys(input).some(key => !['prompt', 'topK', 'mode', 'profile', 'stream'].includes(key))) throw new ApiError(422, 'CHATBOT_INPUT_INVALID', 'prompt, topK, mode, profile, stream만 허용합니다.');
+  if (input.stream !== undefined && typeof input.stream !== 'boolean') throw new ApiError(422, 'CHATBOT_INPUT_INVALID', 'stream은 true 또는 false여야 합니다.');
+  if (input.stream === true && input.mode === 'prepare') throw new ApiError(422, 'CHATBOT_INPUT_INVALID', 'stream은 answer 모드에서만 사용할 수 있습니다.');
   if (typeof input.prompt !== 'string' || !input.prompt.trim() || input.prompt.length > 4000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(input.prompt)) throw new ApiError(422, 'CHATBOT_INPUT_INVALID', 'prompt는 1~4000자의 텍스트여야 합니다.');
   const topK = input.topK ?? defaultTopK, mode = input.mode ?? 'answer';
   if (!Number.isInteger(topK) || topK < 1 || topK > 20) throw new ApiError(422, 'CHATBOT_INPUT_INVALID', 'topK는 1~20 정수여야 합니다.');

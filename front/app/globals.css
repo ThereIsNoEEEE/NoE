@@ -2896,3 +2896,25 @@
     .profile-dialog .dialog-explore { min-height: 44px; }
   }
 }
+
+@layer components {
+  .chat-caret {
+    display: inline-block;
+    width: 7px;
+    height: 1em;
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    background: var(--accent);
+    animation: chatCaret 1s steps(2, start) infinite;
+  }
+  @keyframes chatCaret {
+    to {
+      visibility: hidden;
+    }
+  }
+  .chat-failed-note {
+    margin: 8px 0 0;
+    color: var(--danger);
+    font-size: 0.78rem;
+  }
+}

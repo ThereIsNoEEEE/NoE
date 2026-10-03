@@ -24,12 +24,13 @@
               "prompt": { "type": "string", "minLength": 1, "maxLength": 4000 },
               "topK": { "type": "integer", "minimum": 1, "maximum": 20, "description": "생략하면 서버 설정값 사용 (기본 10)" },
               "mode": { "type": "string", "enum": ["answer", "prepare"], "default": "answer" },
-              "profile": { "type": "object", "description": "선택. 나의 정보(studentType, college, major, grade, interests, customInterests, keywords). 검색 질의와 LLM 문맥에 반영하며, 형식이 맞지 않으면 무시합니다." }
+              "profile": { "type": "object", "description": "선택. 나의 정보(studentType, college, major, grade, interests, customInterests, keywords). 검색 질의와 LLM 문맥에 반영하며, 형식이 맞지 않으면 무시합니다." },
+              "stream": { "type": "boolean", "default": false, "description": "true이면 text/event-stream으로 응답합니다: event sources(검색 결과·이미지, ChatbotResponse에서 answer 제외) → delta({text}) 반복 → done({status}) 또는 error({code, message}). 검색 단계 오류는 일반 JSON 오류로 반환합니다. answer 모드 전용." }
             }
           } } }
         },
         "responses": {
-          "200": { "description": "답변 완료, 문맥 준비 또는 검색 결과 없음", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ChatbotResponse" } } } },
+          "200": { "description": "답변 완료, 문맥 준비 또는 검색 결과 없음 (stream: true이면 Server-Sent Events)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ChatbotResponse" } }, "text/event-stream": { "schema": { "type": "string", "description": "event: sources | delta | done | error, data: JSON" } } } },
           "400": { "description": "잘못된 JSON" },
           "403": { "description": "허용되지 않은 Host 또는 Origin" },
           "413": { "description": "본문 32KB 초과" },

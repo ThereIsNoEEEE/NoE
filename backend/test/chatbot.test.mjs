@@ -353,3 +353,42 @@ test('나의 정보(profile)를 검증해 검색 질의와 LLM 문맥에 반영�
   await service.query({ prompt: '추천해줘', profile });
   assert.match(embedded[0], /^추천해줘\n\(관심: AI, 취업, 해커톤\)$/);
 });
+
+test('openai 형식 스트리밍: SSE 조각을 순서대로 내보내고 [DONE]에서 끝낸다', async () => {
+  const config = loadChatbotConfig({ CHATBOT_API_FORMAT: 'openai', CHATBOT_LLM_URL: 'https://llm.example/v1/chat/completions', CHATBOT_LLM_MODEL: 'm' });
+  let sent;
+  const sse = ['data: {"choices":[{"delta":{"content":"안녕"}}]}\n\n', 'data: {"choices":[{"delta":{"content":"하세요 [S1]"}}]}\n\ndata: {"choices":[{"delta":{}}]}\n\n', 'data: [DONE]\n\n'];
+  const fetchImpl = async (url, init) => { sent = JSON.parse(init.body); return new Response(new ReadableStream({ start(c) { for (const s of sse) c.enqueue(new TextEncoder().encode(s)); c.close(); } }), { status: 200 }); };
+  const parts = [];
+  for await (const text of new HttpLlmProvider(config.llm, 1000, 100, fetchImpl).stream([{ role: 'user', content: 'q' }])) parts.push(text);
+  assert.deepEqual(parts, ['안녕', '하세요 [S1]']);
+  assert.equal(sent.stream, true); assert.equal(sent.max_completion_tokens, 100);
+  const neutral = new HttpLlmProvider({ url: 'https://llm.example', model: 'm', format: 'neutral' }, 1000, 100, async () => new Response(JSON.stringify({ answer: '전체 답변' })));
+  const whole = []; for await (const text of neutral.stream([])) whole.push(text);
+  assert.deepEqual(whole, ['전체 답변']);
+  await assert.rejects(async () => { for await (const _ of new HttpLlmProvider(config.llm, 1000, 100, async () => new Response('nope', { status: 500 })).stream([])); }, { code: 'LLM_API_ERROR' });
+  assert.throws(() => validateChatRequest({ prompt: 'q', stream: 'yes' }), { code: 'CHATBOT_INPUT_INVALID' });
+  assert.throws(() => validateChatRequest({ prompt: 'q', stream: true, mode: 'prepare' }), { code: 'CHATBOT_INPUT_INVALID' });
+});
+
+test('POST /api/chatbot stream:true는 sources → delta → done SSE를 보내고, 검색 전 오류는 JSON으로 돌려준다', async t => {
+  const chatbot = {
+    status: () => ({}),
+    query: async () => ({ status: 'answered' }),
+    startStream: async body => {
+      if (body.prompt === 'bad') { const { ApiError } = await import('../src/http.mjs'); throw new ApiError(422, 'CHATBOT_INPUT_INVALID', 'bad'); }
+      return { head: { status: 'answering', sources: [{ reference: 'S1', imageUrl: '/api/db/notices/x/image' }] }, chunks: (async function* () { yield '첫 '; yield '답변'; })() };
+    },
+  };
+  const app = createServer({ config: loadConfig({}), chatbot }); app.listen(0, '127.0.0.1'); await once(app, 'listening');
+  t.after(() => { app.closeAllConnections(); app.close(); });
+  const url = `http://127.0.0.1:${app.address().port}/api/chatbot`;
+  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: 'q', stream: true }) });
+  assert.match(res.headers.get('content-type'), /text\/event-stream/);
+  const events = (await res.text()).trim().split('\n\n').map(block => ({ event: block.match(/^event: (.+)$/m)[1], data: JSON.parse(block.match(/^data: (.+)$/m)[1]) }));
+  assert.deepEqual(events.map(e => e.event), ['sources', 'delta', 'delta', 'done']);
+  assert.equal(events[0].data.sources[0].imageUrl, '/api/db/notices/x/image');
+  assert.equal(events.filter(e => e.event === 'delta').map(e => e.data.text).join(''), '첫 답변');
+  const bad = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: 'bad', stream: true }) });
+  assert.equal(bad.status, 422); assert.equal((await bad.json()).error.code, 'CHATBOT_INPUT_INVALID');
+});

@@ -80,6 +80,10 @@ export function ChatPanel({ profile }) {
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages, pending]);
 
+  // Updates the last (streaming) assistant message.
+  const patchLast = (patch) =>
+    setMessages((m) => [...m.slice(0, -1), { ...m[m.length - 1], ...(typeof patch === "function" ? patch(m[m.length - 1]) : patch) }]);
+
   const send = async (e, suggestedQuestion) => {
     e.preventDefault();
     const text = (suggestedQuestion ?? question).trim();
@@ -87,26 +91,61 @@ export function ChatPanel({ profile }) {
     setMessages((m) => [...m, { role: "user", content: text }]);
     setQuestion("");
     setPending(true);
+    let started = false;
     try {
       const myInfo = profile ? Object.fromEntries(PROFILE_FIELDS.filter((k) => profile[k] != null).map((k) => [k, profile[k]])) : undefined;
       const res = await fetch("/api/chatbot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: text, ...(myInfo ? { profile: myInfo } : {}) }),
-        signal: AbortSignal.timeout(25000),
+        body: JSON.stringify({ prompt: text, stream: true, ...(myInfo ? { profile: myInfo } : {}) }),
+        signal: AbortSignal.timeout(30000),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(CHAT_ERRORS[data?.error?.code] || "챗봇 응답을 받지 못했어요. 잠시 후 다시 시도해 주세요.");
-      const answer = data.answer || "관련 공지를 찾지 못했어요.";
-      const sources = Array.isArray(data.sources) ? data.sources : [];
-      setMessages((m) => [...m, { role: "assistant", content: linkCitations(answer, sources), sources: pickSourceCards(answer, sources) }]);
+      if (!res.ok || !res.body || !(res.headers.get("content-type") || "").includes("text/event-stream")) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(CHAT_ERRORS[data?.error?.code] || "챗봇 응답을 받지 못했어요. 잠시 후 다시 시도해 주세요.");
+      }
+      // Server-Sent Events: sources → delta × N → done | error
+      let sources = [];
+      let answer = "";
+      let buffer = "";
+      const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += value;
+        let sep;
+        while ((sep = buffer.indexOf("\n\n")) >= 0) {
+          const block = buffer.slice(0, sep);
+          buffer = buffer.slice(sep + 2);
+          const event = /^event: (.+)$/m.exec(block)?.[1];
+          const raw = /^data: (.+)$/m.exec(block)?.[1];
+          if (!event || !raw) continue;
+          const data = JSON.parse(raw);
+          if (event === "sources") {
+            sources = Array.isArray(data.sources) ? data.sources : [];
+            started = true;
+            setMessages((m) => [...m, { role: "assistant", content: "", sources: [], streaming: true }]);
+          } else if (event === "delta") {
+            answer += data.text;
+            patchLast({ content: linkCitations(answer, sources) });
+          } else if (event === "done") {
+            patchLast({ content: linkCitations(answer || "관련 공지를 찾지 못했어요.", sources), sources: pickSourceCards(answer, sources), streaming: false });
+          } else if (event === "error") {
+            throw new Error(CHAT_ERRORS[data.code] || data.message || "챗봇 응답을 받지 못했어요.");
+          }
+        }
+      }
     } catch (err) {
-      const message = err?.name === "TimeoutError" ? "챗봇 응답이 늦어지고 있어요. 다시 시도해 주세요." : err?.message;
-      setMessages((m) => [...m, { role: "assistant", content: message || "챗봇 응답을 받지 못했어요.", error: true }]);
+      const message = (err?.name === "TimeoutError" ? "챗봇 응답이 늦어지고 있어요. 다시 시도해 주세요." : err?.message) || "챗봇 응답을 받지 못했어요.";
+      // Keep text that already streamed in; otherwise show the error bubble.
+      if (started) patchLast((last) => (last.content ? { streaming: false, failedNote: message } : { content: message, error: true, streaming: false }));
+      else setMessages((m) => [...m, { role: "assistant", content: message, error: true }]);
     } finally {
       setPending(false);
     }
   };
+
+  const streaming = messages[messages.length - 1]?.streaming;
 
   return (
     <section className="chat-panel" aria-label="챗봇">
@@ -132,6 +171,8 @@ export function ChatPanel({ profile }) {
                       {m.content}
                     </ReactMarkdown>
                   </div>
+                  {m.streaming && <span className="chat-caret" aria-hidden="true" />}
+                  {m.failedNote && <p className="chat-failed-note">{m.failedNote}</p>}
                   {m.sources?.length > 0 && <SourceCards sources={m.sources} />}
                 </>
               ) : (
@@ -139,7 +180,7 @@ export function ChatPanel({ profile }) {
               )}
             </div>
           ))}
-          {pending && <div className="chat-msg assistant pending">{"답변을 작성하고 있어요…"}</div>}
+          {pending && !streaming && <div className="chat-msg assistant pending">{"관련 공지를 찾고 있어요…"}</div>}
         </div>
       )}
       <form className="chatbar" onSubmit={send}>
