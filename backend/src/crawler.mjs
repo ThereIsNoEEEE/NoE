@@ -441,6 +441,13 @@ async function getNoticeImage(id) {
   return { bytes: entry.bytes, contentType: entry.type };
 }
 
+export async function getImageFromSource(src) {
+  if (!safeImage(src, src)) throw new Error("허용되지 않은 이미지 주소");
+  const id = createHash("sha256").update(src).digest("hex").slice(0, 16);
+  if (!noticeImages.has(id)) noticeImages.set(id, { src });
+  return getNoticeImage(id);
+}
+
 export { getNotices, getNoticeImage, parseKmuMainList, parseKmuCsList,
   parseDetail, parseDetailImage, normalizeNotice, normalizeDate,
   cleanText, classifyCategory, extractDeadline };

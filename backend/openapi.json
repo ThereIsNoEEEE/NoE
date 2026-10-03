@@ -408,6 +408,62 @@
           }
         }
       }
+    },
+    "/api/db/notices/{id}/image": {
+      "get": {
+        "summary": "저장된 공지의 대표 이미지 조회",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "검증된 PNG/JPEG/GIF/WebP 이미지",
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/gif": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "잘못된 공지 UUID"
+          },
+          "404": {
+            "description": "공지 또는 사용 가능한 이미지 없음"
+          },
+          "503": {
+            "description": "DB 연결 오류"
+          }
+        }
+      }
     }
   },
   "components": {
