@@ -1,5 +1,6 @@
 "use client";
 
+import { NoticeImage } from "./NoticeImage";
 import { Button } from "@/components/ui/button";
 import { SourceBadge } from "./SourceBadge";
 import { DeadlineBadge } from "./DeadlineBadge";
@@ -35,7 +36,8 @@ export function HomeNoticeCard({
           <span>{notice.date}</span>
         </div>
         <h3>{notice.title}</h3>
-        <div className="home-visual" aria-hidden="true">
+        <div className="home-visual">
+          <NoticeImage src={notice.imageUrl} title={notice.title} />
           <span className="hv-cat">
             {((s = notice.category) == null ? void 0 : s[0]) || "공지"}
           </span>

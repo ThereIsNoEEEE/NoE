@@ -2240,3 +2240,17 @@
     margin-top: 12px;
   }
 }
+
+/* Notice posters fill the card; tall posters are cropped from the top. */
+@layer components {
+  .notice-poster { object-fit: cover; object-position: center top; background: #0e130f; }
+  .home-visual:has(.notice-poster) .hv-cat,
+  .home-visual:has(.notice-poster) .hv-meta,
+  .home-visual:has(.notice-poster) .score-ring { z-index: 1; }
+  .home-visual:has(.notice-poster) .hv-cat,
+  .home-visual:has(.notice-poster) .hv-meta { background: rgba(11, 14, 12, .88); border-radius: 4px; padding: 4px 6px; }
+  .top-notice-visual { position: relative; height: 180px; margin: 12px 0; overflow: hidden; border-radius: 8px; background: var(--surface-3); }
+}
+@layer components {
+  .top-notice-visual:not(:has(.notice-poster)) { display: none; }
+}

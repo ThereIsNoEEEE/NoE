@@ -12,6 +12,11 @@ export async function handleDbRoutes(request, response, url, repository, notices
       try { await repository.client.collection(repository.collection); }
       catch (error) { if (error instanceof QdrantError && error.status === 404) collectionExists = false; else throw error; }
       json(response, 200, { ok: true, database: 'qdrant', collectionExists });
+    } else if (/^\/api\/db\/notices\/[^/]+\/image$/.test(url.pathname)) {
+      if (request.method !== 'GET') throw new ApiError(405, 'METHOD_NOT_ALLOWED', 'GET만 허용합니다.');
+      const image = await notices.image(url.pathname.split('/')[4]);
+      response.writeHead(200, { 'Content-Type': image.contentType, 'Content-Length': image.bytes.length, 'Cache-Control': 'public, max-age=600', 'X-Content-Type-Options': 'nosniff' });
+      response.end(image.bytes);
     } else if (url.pathname === '/api/db/notices') {
       if (request.method !== 'GET') throw new ApiError(405, 'METHOD_NOT_ALLOWED', 'GET만 허용합니다.');
       if (!notices) throw new ApiError(404, 'NOT_FOUND', 'DB API를 찾을 수 없습니다.');
