@@ -2775,3 +2775,35 @@
     }
   }
 }
+
+@layer components {
+  .notice-sources {
+    margin-top: 36px;
+  }
+  .notice-sources .collected-table td {
+    vertical-align: top;
+  }
+  .notice-sources .collected-table td.title a {
+    word-break: break-all;
+  }
+  .notice-sources .source-college {
+    min-width: 170px;
+    text-align: left;
+    color: var(--text);
+    font-weight: 700;
+  }
+  .notice-sources tr.mine th,
+  .notice-sources tr.mine td {
+    background: var(--surface-3);
+  }
+  .notice-sources .tag {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 1px 7px;
+    border: 1px solid var(--green);
+    border-radius: 999px;
+    color: var(--green);
+    font-size: 0.66rem;
+    font-weight: 400;
+  }
+}
