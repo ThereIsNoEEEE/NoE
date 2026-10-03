@@ -24,7 +24,8 @@ export function HomeNoticeCard({
         role="button"
         tabIndex={0}
         onKeyDown={(a) => {
-          if (a.key === "Enter") {
+          if (a.key === "Enter" || a.key === " ") {
+            a.preventDefault();
             onOpen(item);
           }
         }}

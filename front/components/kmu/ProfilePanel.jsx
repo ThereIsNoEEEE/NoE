@@ -18,6 +18,8 @@ export function ProfilePanel({
   searching: searching,
   buttonLabel = "내 공지 찾기",
   wide = false,
+  onboardingStep = null,
+  onNext,
 }) {
   const [keywordInput, setKeywordInput] = React.useState("");
   const [keywordError, setKeywordError] = React.useState("");
@@ -39,14 +41,15 @@ export function ProfilePanel({
         className={`profile-form${wide ? " profile-wide" : ""}`}
         onSubmit={(d) => {
           d.preventDefault();
-          onSearch();
+          if (onboardingStep === 0) onNext();
+          else onSearch();
         }}
       >
         <div className="form-head">
           <strong>{"내 학사 정보"}</strong>
           <span className="demo-badge">{"MY PROFILE"}</span>
         </div>
-        <div
+        {onboardingStep === null && <div
           className="chips flex flex-wrap gap-1.5"
           style={{
             marginBottom: 14,
@@ -64,8 +67,8 @@ export function ProfilePanel({
               {c.label}
             </Button>
           ))}
-        </div>
-        <div className="field-grid">
+        </div>}
+        {(onboardingStep === null || onboardingStep === 0) && <div className="field-grid">
           <label>
             <span>{"학적"}</span>
             <select
@@ -128,15 +131,16 @@ export function ProfilePanel({
               ))}
             </select>
           </label>
-        </div>
-        <InterestSelector
+        </div>}
+        {(onboardingStep === null || onboardingStep === 1) && <InterestSelector
           selected={profile.interests}
           customInterests={profile.customInterests}
           onToggle={onToggleInterest}
           onAddCustom={onAddCustom}
           onRemoveCustom={onRemoveCustom}
-        />
-        <div className="field-block">
+          compact={onboardingStep !== null}
+        />}
+        {onboardingStep === null && <div className="field-block">
           <div className="label">
             <span>{"관심 키워드"}</span>
             <em>
@@ -192,14 +196,14 @@ export function ProfilePanel({
             </Button>
           </div>
           <p className="field-msg">{keywordError}</p>
-        </div>
+        </div>}
         <Button
           variant="original"
           className="primary-btn"
           type="submit"
           disabled={searching}
         >
-          {searching ? "공지를 분석하는 중…" : buttonLabel}
+          {searching ? "공지를 분석하는 중…" : onboardingStep === 0 ? "다음 · 관심 분야 선택" : onboardingStep === 1 ? "맞춤 공지 시작하기" : buttonLabel}
         </Button>
       </form>
     </aside>

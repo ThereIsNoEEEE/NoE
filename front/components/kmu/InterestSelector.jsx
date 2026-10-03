@@ -10,6 +10,7 @@ export function InterestSelector({
   onToggle: onToggle,
   onAddCustom: onAddCustom,
   onRemoveCustom: onRemoveCustom,
+  compact = false,
 }) {
   const [interestInput, setInterestInput] = React.useState("");
   const [feedback, setFeedback] = React.useState({
@@ -33,7 +34,7 @@ export function InterestSelector({
     }
   };
   return (
-    <div className="field-block">
+    <div className={`field-block${compact ? " compact-interests" : ""}`}>
       <div className="label">
         <span>{"관심 분야 (복수 선택)"}</span>
         <em>
@@ -54,7 +55,7 @@ export function InterestSelector({
             {p}
           </Button>
         ))}
-        {customInterests.map((p) => (
+        {(compact ? [] : customInterests).map((p) => (
           <span
             key={p}
             className={`chip custom${selected.includes(p) ? " active" : ""}`}

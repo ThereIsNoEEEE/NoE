@@ -1,52 +1,45 @@
 "use client";
 
-import * as React from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ChatPanel } from "./ChatPanel";
 
-// 오른쪽 하단 고정 챗봇 버튼 + 클릭 시 열리는 팝업 창.
-// 대화 내용은 백엔드 RAG 챗봇(ChatPanel, POST /api/chatbot)이 처리한다.
 export function ChatbotWidget() {
-  const [open, setOpen] = React.useState(false);
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef(null);
+  const dockRef = useRef(null);
+  const panelId = useId();
+  const close = useCallback(() => {
+    setOpen(false);
+    triggerRef.current?.focus({ preventScroll: true });
+  }, []);
 
-  React.useEffect(() => {
-    if (!open) return undefined;
-    const onKey = (e) => {
-      if (e.key === "Escape") setOpen(false);
-    };
+  useEffect(() => {
+    if (!open) return;
+    dockRef.current?.querySelector("input")?.focus({ preventScroll: true });
+    const log = dockRef.current?.querySelector(".chat-log");
+    if (log) log.scrollTop = log.scrollHeight;
+    const onKey = (event) => { if (event.key === "Escape") close(); };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open]);
+  }, [open, close]);
 
   return (
     <>
-      {/* 닫아도 대화가 사라지지 않도록 언마운트하지 않고 숨긴다 */}
-      <div
-        className="chat-backdrop"
-        hidden={!open}
-        onClick={(e) => {
-          if (e.target === e.currentTarget) setOpen(false);
-        }}
-      >
-        <section className="chat-window" role="dialog" aria-label="챗봇" aria-modal="true">
+      <div className="chat-dock" ref={dockRef} hidden={!open}>
+        <section id={panelId} className="chat-window" role="dialog" aria-label="공지 AI 도우미" aria-modal="false">
           <header className="chat-head">
-            <strong>{"챗봇"}</strong>
-            <Button variant="original" className="chat-close" onClick={() => setOpen(false)} aria-label="챗봇 닫기" type="button">
-              {"×"}
-            </Button>
+            <div className="chat-head-copy">
+              <strong>공지 AI 도우미</strong>
+              <span>궁금한 학교 공지를 물어보세요</span>
+            </div>
+            <Button variant="original" className="chat-close" onClick={close} aria-label="챗봇 닫기" type="button">×</Button>
           </header>
           <ChatPanel />
         </section>
       </div>
-      <Button
-        variant="original"
-        className="chat-fab"
-        onClick={() => setOpen((o) => !o)}
-        aria-label={open ? "챗봇 닫기" : "챗봇 열기"}
-        aria-expanded={open}
-        type="button"
-      >
-        {"챗봇"}
+      <Button ref={triggerRef} variant="original" className="chat-fab" onClick={() => open ? close() : setOpen(true)} aria-label={open ? "챗봇 닫기" : "챗봇 열기"} aria-expanded={open} aria-controls={panelId} type="button">
+        {open ? "닫기" : "챗봇"}
       </Button>
     </>
   );

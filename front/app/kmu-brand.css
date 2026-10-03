@@ -1,0 +1,85 @@
+/* KMU official UI colors, adapted to the user's yellow/orange/green emblem direction.
+   https://www.kookmin.ac.kr/comm/menu/user/0a4f7cf187cc3164678352bc3f4575b3/content/index.do */
+:root {
+  --kmu-blue: #004f9f; --kmu-orange: #f3953f; --kmu-yellow: #ffce44;
+  --kmu-light-green: #95c23d; --kmu-green: #00a470; --kmu-sky: #a1daf8;
+  --bg: #171b17; --surface: #20261f; --surface-2: #283025; --surface-3: #313b2b;
+  --text: #f5f5e9; --muted: #bcc3ae; --muted-2: #a3ad97;
+  --line: #45503c; --line-soft: #333e2d;
+  --accent: #f3953f; --accent-strong: #ffae65; --accent-ink: #23190d;
+  --green: #88d6ae; --green-deep: #173e2d; --lavender: #c9d890; --blue: #a1daf8;
+  --danger: #efaaa0; --brand-selection: #303e28;
+  --brand-warning-bg: #3a2b1b; --brand-warning-text: #f6b777;
+  --brand-yellow-text: #ffda75; --brand-yellow-bg: #39341d;
+  --action-bg: #f3953f; --action-hover: #ffaa60; --action-ink: #23190d;
+}
+:root[data-theme="light"] {
+  --bg: #f7f8f3; --surface: #fff; --surface-2: #f0f3e9; --surface-3: #e6eddc;
+  --text: #253022; --muted: #5d6b53; --muted-2: #6b785f;
+  --line: #d2dcc8; --line-soft: #e5ebde;
+  --accent: #96500c; --accent-strong: #743c07; --accent-ink: #23190d;
+  --green: #00674a; --green-deep: #e5f5eb; --lavender: #5c6f22; --blue: #236f96;
+  --danger: #ae3e32; --brand-selection: #edf4df;
+  --brand-warning-bg: #fff0dc; --brand-warning-text: #9a4c0c;
+  --brand-yellow-text: #775b00; --brand-yellow-bg: #fff8d9;
+}
+.brand-mark, .btn-sm.solid, .primary-btn, .chat-fab {
+  background: var(--action-bg); border-color: var(--action-bg); color: var(--action-ink);
+}
+.btn-sm.solid:hover, .primary-btn:hover, .chat-fab:hover {
+  background: var(--action-hover); border-color: var(--action-hover); color: var(--action-ink);
+}
+.nav-item.active { background: var(--brand-selection); box-shadow: inset 3px 0 var(--kmu-light-green); color: var(--text); }
+.home-card.rank-1 { border-color: color-mix(in oklab, var(--kmu-yellow) 50%, var(--line)); }
+.home-card:hover { border-color: var(--kmu-orange); }
+.home-card.rank-1 .home-rank { color: var(--brand-yellow-text); }
+.score-ring { background: conic-gradient(var(--kmu-yellow) var(--score), var(--line) 0); }
+.home-visual:has(.notice-poster) .score-ring { background: conic-gradient(var(--kmu-yellow) var(--score), #ffffff40 0); }
+.source.school { color: var(--green); background: var(--green-deep); border-color: var(--line); }
+.cat { color: var(--green); border-color: var(--line); background: var(--green-deep); }
+.chip.active, .btn-sm.on { color: var(--green); background: var(--green-deep); border-color: var(--kmu-green); }
+.dday.hot { color: var(--brand-warning-text); }
+.home-visual:has(.notice-poster) .dday.hot { color: var(--kmu-orange); }
+.status-pill.warn { color: var(--brand-warning-text); background: var(--brand-warning-bg); border-color: color-mix(in oklab, var(--kmu-orange) 35%, var(--line)); }
+.status-pill.warn i { background: var(--kmu-orange); }
+.status-pill:not(.warn) i, .live-dot { background: var(--kmu-green); }
+.ai-line b, .tile-note { color: var(--green); }
+.profile-dialog::backdrop { background: #111c12aa; }
+.chat-dock .chat-msg.user { background: var(--green-deep); color: var(--text); }
+
+/* Compact first setup: academic information, then interests. */
+.profile-dialog.profile-wizard { width:min(560px,calc(100% - 32px)); max-height:none; padding:26px; overflow:hidden; }
+.profile-wizard .profile-dialog-head { gap:14px; margin-bottom:20px; }
+.profile-wizard .profile-dialog-head>div { min-width:0; }
+.profile-wizard #profile-dialog-title { font-size:23px; line-height:1.4; margin:12px 0 8px; letter-spacing:-.025em; }
+.profile-wizard #profile-dialog-description { font-size:13px; line-height:1.65; }
+.setup-progress { display:flex; gap:12px; font-size:11px; color:var(--muted); }
+.setup-progress .current { color:var(--accent); font-weight:650; }
+.setup-progress .complete { color:var(--green); }
+.profile-wizard .profile-form { padding:0; border:0; }
+.profile-wizard .field-grid { grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; }
+.profile-wizard .field-grid label { min-width:0; }
+.profile-wizard .field-grid select { height:42px; }
+.profile-wizard .compact-interests { margin-top:0; }
+.profile-wizard .compact-interests .add-row,.profile-wizard .compact-interests .field-msg { display:none; }
+.profile-wizard .compact-interests .chips { gap:7px; }
+.profile-wizard .compact-interests .chip { min-height:34px; }
+.profile-wizard .primary-btn { margin-top:18px; height:44px; }
+.setup-footer { display:flex; align-items:center; justify-content:space-between; gap:10px; padding-top:15px; color:var(--muted); font-size:11px; }
+.profile-wizard .dialog-explore,.setup-back { border:0; background:none; width:auto; margin:0; padding:7px 0; color:var(--muted); font-size:12px; }
+.setup-back:hover,.profile-wizard .dialog-explore:hover { color:var(--accent); }
+@media(max-width:620px) {
+ .profile-dialog.profile-wizard { padding:20px; }
+ .profile-wizard #profile-dialog-title { font-size:20px; }
+ .profile-wizard .field-grid select { font-size:16px; }
+ .profile-wizard .dialog-explore,.setup-back { min-height:36px; }
+}
+@media(max-height:520px) {
+ .profile-dialog.profile-wizard { padding:14px 18px; width:min(600px,calc(100% - 24px)); }
+ .profile-wizard .profile-dialog-head { margin-bottom:10px; }
+ .profile-wizard #profile-dialog-title { font-size:18px; margin:7px 0 4px; }
+ .profile-wizard .field-grid { gap:8px 12px; }
+ .profile-wizard .field-grid select { height:34px; }
+ .profile-wizard .primary-btn { margin-top:12px; height:36px; min-height:36px; }
+ .setup-footer { padding-top:5px; }
+}
