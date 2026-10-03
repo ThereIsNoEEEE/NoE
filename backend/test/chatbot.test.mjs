@@ -302,3 +302,9 @@ test('openai 형식은 /v1/embeddings·/v1/chat/completions 요청/응답으로 
   assert.deepEqual(bodies[1], { model: 'gpt-5.4-mini', messages: [{ role: 'user', content: 'q' }], max_completion_tokens: 300 });
   assert.throws(() => loadChatbotConfig({ CHATBOT_API_FORMAT: 'other' }));
 });
+
+test('LLM 문맥에 한국 시간 기준 오늘 날짜를 포함한다', () => {
+  const { messages } = buildMessages('이번 주 마감 공지', [], 12000, new Date('2026-10-03T16:00:00Z'));
+  assert.equal(JSON.parse(messages[1].content).today, '2026-10-04 (일)');
+  assert.match(messages[0].content, /today/);
+});

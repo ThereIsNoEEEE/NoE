@@ -29,6 +29,8 @@ services:
       CHATBOT_LLM_MODEL: ${CHATBOT_LLM_MODEL:-gemini-3.5-flash-lite}
       CHATBOT_LLM_API_KEY: ${GEMINI_API_KEY}
       CHATBOT_MAX_OUTPUT_TOKENS: "2000"
+      CHATBOT_TOP_K: "15"
+      CHATBOT_MAX_CONTEXT_CHARS: "20000"
     ports:
       - "127.0.0.1:8001:8001"
 
