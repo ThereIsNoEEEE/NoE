@@ -395,7 +395,8 @@ export function CampusDashboard() {
             onOpen={(S) => setSelectedNoticeId(S.notice.id)}
             tiles={tiles}
             onGo={navigate}
-            onChat={() => showToast("챗봇은 준비 중이에요. 곧 만나요!")}
+            profile={profile}
+            ranked={ranked}
             who={profileLabel}
           />
         );

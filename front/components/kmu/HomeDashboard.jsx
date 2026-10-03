@@ -3,8 +3,8 @@
 import * as React from "react";
 import { Fragment } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { HomeNoticeCard } from "./HomeNoticeCard";
+import { ChatPanel } from "./ChatPanel";
 export function HomeDashboard({
   top3: top3,
   savedIds: savedIds,
@@ -12,10 +12,10 @@ export function HomeDashboard({
   onOpen: onOpen,
   tiles: tiles,
   onGo: onGo,
-  onChat: onChat,
+  profile: profile,
+  ranked: ranked,
   who: who,
 }) {
-  const [question, setQuestion] = React.useState("");
   return (
     <Fragment>
       <section aria-labelledby="homeTitle">
@@ -79,27 +79,7 @@ export function HomeDashboard({
           </Button>
         ))}
       </section>
-      <form
-        className="chatbar"
-        onSubmit={(p) => {
-          p.preventDefault();
-          onChat(question);
-          setQuestion("");
-        }}
-      >
-        <strong>{"챗봇"}</strong>
-        <Input
-          original={true}
-          className="text-input"
-          value={question}
-          onChange={(p) => setQuestion(p.target.value)}
-          placeholder="Chat-Bot과 함께 계획을 짜봅시다!"
-          aria-label="챗봇에게 질문하기"
-        />
-        <Button variant="original" type="submit" className="btn-sm solid">
-          {"보내기"}
-        </Button>
-      </form>
+      <ChatPanel profile={profile} ranked={ranked} />
     </Fragment>
   );
 }
