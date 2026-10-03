@@ -12,10 +12,6 @@
 
 Qdrant 요청 시 `api-key` 헤더에 API 키가 필요합니다. 키는 서버의 `.env` 파일 `QDRANT_API_KEY` 값을 사용하세요 (저장소에는 커밋하지 않음).
 
-```bash
-48df41ffe64d0273be92a218bf20a132bc6b1261cfdae117
-```
-
 ## 실행
 
 ```bash
