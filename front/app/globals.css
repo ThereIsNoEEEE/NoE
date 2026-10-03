@@ -2296,14 +2296,73 @@
 
 /* Notice posters fill the card; tall posters are cropped from the top. */
 @layer components {
-  .notice-poster { object-fit: cover; object-position: center top; background: #0e130f; }
+  /* Notice posters (mostly portrait): whole image via contain, blurred copy behind. */
+  .notice-poster {
+    object-fit: contain;
+    z-index: 0;
+  }
+  .notice-poster-bg {
+    object-fit: cover;
+    filter: blur(18px) brightness(0.45) saturate(1.1);
+    transform: scale(1.15);
+    z-index: 0;
+  }
+  .home-visual:has(.notice-poster) {
+    height: auto;
+    aspect-ratio: 4 / 5;
+  }
+  .home-visual:has(.notice-poster)::after {
+    content: "";
+    position: absolute;
+    inset: auto 0 0;
+    height: 42%;
+    background: linear-gradient(to top, rgba(8, 10, 9, 0.92), transparent);
+    pointer-events: none;
+    z-index: 0;
+  }
   .home-visual:has(.notice-poster) .hv-cat,
   .home-visual:has(.notice-poster) .hv-meta,
-  .home-visual:has(.notice-poster) .score-ring { z-index: 1; }
-  .home-visual:has(.notice-poster) .hv-cat,
-  .home-visual:has(.notice-poster) .hv-meta { background: rgba(11, 14, 12, .88); border-radius: 4px; padding: 4px 6px; }
-  .top-notice-visual { position: relative; height: 180px; margin: 12px 0; overflow: hidden; border-radius: 8px; background: var(--surface-3); }
-}
-@layer components {
-  .top-notice-visual:not(:has(.notice-poster)) { display: none; }
+  .home-visual:has(.notice-poster) .score-ring {
+    z-index: 1;
+  }
+  .home-visual:has(.notice-poster) .hv-cat {
+    background: rgba(11, 14, 12, 0.82);
+    border-radius: 4px;
+    padding: 3px 7px;
+  }
+  .home-visual:has(.notice-poster) .hv-meta .dday {
+    font-size: 1.3rem;
+  }
+  .top-poster {
+    position: relative;
+    align-self: start;
+    aspect-ratio: 3 / 4;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface-3);
+  }
+  .top-poster:not(:has(.notice-poster)) {
+    display: none;
+  }
+  .top-card:has(.top-poster .notice-poster) {
+    grid-template-columns: 54px minmax(0, 1fr) 168px 118px;
+  }
+  @media (max-width: 900px) {
+    .top-card:has(.top-poster .notice-poster) {
+      grid-template-columns: 54px minmax(0, 1fr) 130px 96px;
+    }
+  }
+  @media (max-width: 620px) {
+    .top-card:has(.top-poster .notice-poster) {
+      grid-template-columns: 1fr 86px;
+    }
+    .top-poster {
+      grid-row: 3;
+      grid-column: 1 / -1;
+      width: 100%;
+      max-width: 300px;
+      justify-self: center;
+    }
+  }
 }
