@@ -1,5 +1,11 @@
 # NoE
 
+## 메인 화면
+
+![메인 화면 (데스크톱)](docs/screenshots/main-desktop.png)
+
+<img src="docs/screenshots/main-mobile.png" alt="메인 화면 (모바일)" width="320">
+
 ## 접속 정보
 
 | 서비스 | 주소 | 비고 |
@@ -11,10 +17,6 @@
 | Qdrant gRPC (내부망) | 192.168.0.236:6334 | 외부 미개방 |
 
 Qdrant 요청 시 `api-key` 헤더에 API 키가 필요합니다. 키는 서버의 `.env` 파일 `QDRANT_API_KEY` 값을 사용하세요 (저장소에는 커밋하지 않음).
-
-```bash
-48df41ffe64d0273be92a218bf20a132bc6b1261cfdae117
-```
 
 ## 실행
 

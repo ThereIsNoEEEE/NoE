@@ -7,10 +7,12 @@ import { ApiError, json } from './http.mjs';
 import { getNotices, getNoticeImage } from './crawler.mjs';
 import { QdrantClient } from './db/qdrant.mjs';
 import { ProfilesRepository } from './db/profiles.mjs';
+import { NoticesRepository } from './db/notices.mjs';
 import { handleDbRoutes } from './db/routes.mjs';
 
-export function createServer({ config = loadConfig(), repository, crawler = { getNotices, getNoticeImage } } = {}) {
+export function createServer({ config = loadConfig(), repository, notices, crawler = { getNotices, getNoticeImage } } = {}) {
   repository ??= new ProfilesRepository(new QdrantClient(config.qdrant), config.qdrant.collection);
+  notices ??= new NoticesRepository(repository.client, config.qdrant.noticesCollection);
   const server = http.createServer(async (request, response) => {
     try {
       const base = new URL(`http://${request.headers.host || ''}`);
@@ -22,7 +24,7 @@ export function createServer({ config = loadConfig(), repository, crawler = { ge
         response.writeHead(204, { 'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' }); response.end(); return;
       }
       const url = new URL(request.url, base);
-      if (await handleDbRoutes(request, response, url, repository)) return;
+      if (await handleDbRoutes(request, response, url, repository, notices)) return;
       if (request.method === 'GET' && url.pathname === '/api/health') { json(response, 200, { ok: true, service: 'kmu-pick-backend' }); return; }
       if (request.method === 'GET' && url.pathname === '/api/notices' || request.method === 'POST' && url.pathname === '/api/crawl') {
         const data = await crawler.getNotices(request.method === 'POST' || url.searchParams.get('refresh') === '1');

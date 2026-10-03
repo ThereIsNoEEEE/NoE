@@ -6,6 +6,7 @@ import { NOTICE_FILTERS } from "@/data/profile";
 import { TopNoticeCard } from "./TopNoticeCard";
 import { NoticeListItem } from "./NoticeListItem";
 export function NoticeList({
+  top3: top3,
   ranked: ranked,
   savedIds: savedIds,
   onSave: onSave,
@@ -13,8 +14,9 @@ export function NoticeList({
   filter: filter,
   onFilter: onFilter,
 }) {
-  const o = ranked.slice(0, 3);
-  const s = ranked.slice(3);
+  const o = top3;
+  const top3Ids = new Set(top3.map((p) => p.notice.id));
+  const s = ranked.filter((p) => !top3Ids.has(p.notice.id));
   const a = (p) =>
     filter === "rec"
       ? p.score.total >= 60
@@ -50,7 +52,14 @@ export function NoticeList({
           ))}
           {o.length === 0 && (
             <div className="empty-state show">
-              {"표시할 공지가 없어요. 프로필을 바꾸거나 새로고침해 보세요."}
+              {
+                "조건에 맞는 공지가 없어요. 설정에서 관심 분야·키워드를 늘리거나 새로고침해 보세요."
+              }
+            </div>
+          )}
+          {o.length > 0 && o.length < 3 && (
+            <div className="empty-state show">
+              {"조건에 맞는 공지가 적어요. 관심 분야를 늘리면 더 보여드릴게요."}
             </div>
           )}
         </div>
