@@ -1,3 +1,5 @@
+import { loadChatbotConfig } from '../CHATBOT/config.mjs';
+
 export function loadConfig(env = process.env) {
   const port = Number(env.PORT || 8001);
   const timeoutMs = Number(env.QDRANT_TIMEOUT_MS || 5000);
@@ -16,5 +18,5 @@ export function loadConfig(env = process.env) {
     if (parsed.origin !== origin || !['127.0.0.1', 'localhost', '[::1]'].includes(parsed.hostname)) throw new Error('개발용 CORS는 로컬 HTTP(S) origin만 허용합니다.');
   }
   const allowedHosts = ['127.0.0.1', 'localhost', '[::1]', ...(env.ALLOWED_HOSTS || '').split(',').map(x => x.trim()).filter(Boolean)];
-  return { port, host: env.HOST || '127.0.0.1', allowedHosts, allowedOrigins, qdrant: { url: url.href.replace(/\/$/, ''), apiKey: env.QDRANT_API_KEY || '', collection, timeoutMs, insecureRemote: !loopback && url.protocol === 'http:' } };
+  return { port, host: env.HOST || '127.0.0.1', allowedHosts, allowedOrigins, chatbot: loadChatbotConfig(env), qdrant: { url: url.href.replace(/\/$/, ''), apiKey: env.QDRANT_API_KEY || '', collection, timeoutMs, insecureRemote: !loopback && url.protocol === 'http:' } };
 }
